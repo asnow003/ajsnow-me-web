@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useState } from 'react';
 import { Check, Eye, EyeOff, Pencil, Trash2, Trophy, UserPlus, X } from 'lucide-react';
 import { useGames } from '@/components/games/GamesShell';
@@ -207,13 +208,13 @@ function PlayerRow({
           </form>
         ) : (
           <>
-            <div className="min-w-0 flex-1">
+            <Link href={`/games/player?id=${player.id}&from=players`} className="min-w-0 flex-1 rounded-lg hover:opacity-80">
               <div className="truncate font-display text-xl font-medium">{player.name}</div>
               <div className="flex items-center gap-1 text-sm text-ink/60">
                 <Trophy className="h-4 w-4 text-playing" aria-hidden="true" />
                 {wins} {wins === 1 ? 'win' : 'wins'} · {played} {played === 1 ? 'game' : 'games'}
               </div>
-            </div>
+            </Link>
             <button className={iconButton} aria-label={`Rename ${player.name}`} onClick={() => setEditing(true)}>
               <Pencil className="h-5 w-5" />
             </button>

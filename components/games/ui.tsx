@@ -120,3 +120,9 @@ export function formatDate(ms: number): string {
     ...(d.getFullYear() !== today.getFullYear() && { year: 'numeric' }),
   });
 }
+
+// When a game took place, e.g. "Today, 7:15 PM" or "Oct 5, 7:15 PM".
+export function formatDateTime(ms: number): string {
+  const time = new Date(ms).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  return `${formatDate(ms)}, ${time}`;
+}

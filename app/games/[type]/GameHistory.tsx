@@ -5,7 +5,8 @@ import { useState } from 'react';
 import { ChevronRight, EllipsisVertical, Eye, Plus, RotateCcw, Trash2, Trophy } from 'lucide-react';
 import { useGames } from '@/components/games/GamesShell';
 import { useAllGames, usePlayerMap } from '@/components/games/hooks';
-import { ConfirmDialog, Header, Loading, Page, PlayerDot, formatDate } from '@/components/games/ui';
+import { SCORERS } from '@/components/games/scorers';
+import { ConfirmDialog, Header, Loading, Page, PlayerDot, formatDateTime } from '@/components/games/ui';
 import { getGameDef } from '@/lib/games/registry';
 import type { Game, Player } from '@/lib/games/types';
 
@@ -55,14 +56,17 @@ export default function GameHistory({ type }: { type: string }) {
                     <div className="flex items-start gap-1 text-sm text-ink/60">
                       {playing ? (
                         <>
-                          {formatDate(game.createdAt)} · round {game.rounds.length + 1}
+                          <span>
+                            <span className="whitespace-nowrap">{formatDateTime(game.createdAt)}</span> ·{' '}
+                            <span className="whitespace-nowrap">{progressLabel(game)}</span>
+                          </span>
                         </>
                       ) : (
                         <>
                           <Trophy className="mt-0.5 h-4 w-4 shrink-0 text-playing" aria-hidden="true" />
                           <span>
                             {winners ? `${winners} won` : 'No winner'} ·{' '}
-                            <span className="whitespace-nowrap">{formatDate(game.completedAt ?? game.createdAt)}</span>
+                            <span className="whitespace-nowrap">{formatDateTime(game.createdAt)}</span>
                           </span>
                         </>
                       )}
@@ -209,4 +213,12 @@ function MenuButton({
       {label}
     </button>
   );
+}
+
+function progressLabel(game: Game): string {
+  const scorer = SCORERS[game.type];
+  const progress = scorer?.progress(game);
+  if (!progress) return `round ${game.rounds.length + 1}`;
+  const noun = (scorer?.roundNoun ?? 'Round').toLowerCase();
+  return progress.done ? `all ${noun}s played` : `${noun} ${progress.current} of ${progress.total}`;
 }

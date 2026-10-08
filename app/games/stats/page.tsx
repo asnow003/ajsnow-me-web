@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useState } from 'react';
 import { Trophy } from 'lucide-react';
 import { useAllGames, usePlayers } from '@/components/games/hooks';
@@ -77,34 +78,39 @@ export default function StatsPage() {
           ) : (
             <ol className="flex flex-col gap-2">
               {rows.map((r) => (
-                <li key={r.player.id} className="flex items-center gap-3 rounded-2xl bg-white p-3 shadow-sm sm:gap-4 sm:p-4">
-                  <span
-                    className={`w-7 shrink-0 text-center font-display text-xl font-semibold ${r.rank === 1 && r.wins > 0 ? '' : 'text-ink/40'}`}
-                    style={r.rank === 1 && r.wins > 0 ? { color: accent } : undefined}
+                <li key={r.player.id}>
+                  <Link
+                    href={`/games/player?id=${r.player.id}&from=stats`}
+                    className="flex items-center gap-3 rounded-2xl bg-white p-3 shadow-sm hover:bg-white/70 sm:gap-4 sm:p-4"
                   >
-                    {r.rank === 1 && r.wins > 0 ? <Trophy className="mx-auto h-6 w-6" aria-label="First place" /> : r.rank}
-                  </span>
-                  <PlayerDot player={r.player} size="lg" />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-baseline justify-between gap-2">
-                      <span className={`truncate font-display text-xl font-medium ${r.player.hidden ? 'text-ink/50' : ''}`}>
-                        {r.player.name}
-                      </span>
-                      <span className="shrink-0 font-display text-2xl font-semibold tabular-nums">
-                        {r.wins}
-                        <span className="ml-1 text-sm font-normal text-ink/50">{r.wins === 1 ? 'win' : 'wins'}</span>
-                      </span>
+                    <span
+                      className={`w-7 shrink-0 text-center font-display text-xl font-semibold ${r.rank === 1 && r.wins > 0 ? '' : 'text-ink/40'}`}
+                      style={r.rank === 1 && r.wins > 0 ? { color: accent } : undefined}
+                    >
+                      {r.rank === 1 && r.wins > 0 ? <Trophy className="mx-auto h-6 w-6" aria-label="First place" /> : r.rank}
+                    </span>
+                    <PlayerDot player={r.player} size="lg" />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-baseline justify-between gap-2">
+                        <span className={`truncate font-display text-xl font-medium ${r.player.hidden ? 'text-ink/50' : ''}`}>
+                          {r.player.name}
+                        </span>
+                        <span className="shrink-0 font-display text-2xl font-semibold tabular-nums">
+                          {r.wins}
+                          <span className="ml-1 text-sm font-normal text-ink/50">{r.wins === 1 ? 'win' : 'wins'}</span>
+                        </span>
+                      </div>
+                      <div className="mt-1.5 h-2.5 overflow-hidden rounded-full bg-ink/5">
+                        <div
+                          className="h-full rounded-full transition-[width] duration-500"
+                          style={{ width: `${(r.wins / mostWins) * 100}%`, background: r.player.color }}
+                        />
+                      </div>
+                      <div className="mt-1 text-sm text-ink/60">
+                        {r.played} {r.played === 1 ? 'game' : 'games'} · {Math.round((r.wins / r.played) * 100)}% won
+                      </div>
                     </div>
-                    <div className="mt-1.5 h-2.5 overflow-hidden rounded-full bg-ink/5">
-                      <div
-                        className="h-full rounded-full transition-[width] duration-500"
-                        style={{ width: `${(r.wins / mostWins) * 100}%`, background: r.player.color }}
-                      />
-                    </div>
-                    <div className="mt-1 text-sm text-ink/60">
-                      {r.played} {r.played === 1 ? 'game' : 'games'} · {Math.round((r.wins / r.played) * 100)}% won
-                    </div>
-                  </div>
+                  </Link>
                 </li>
               ))}
             </ol>
