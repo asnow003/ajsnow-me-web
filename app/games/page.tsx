@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Lock, Plus, Users } from 'lucide-react';
+import { ChartColumn, Lock, Plus, Users } from 'lucide-react';
 import { useGames } from '@/components/games/GamesShell';
 import { useAllGames } from '@/components/games/hooks';
 import { Header, Page } from '@/components/games/ui';
@@ -16,10 +16,10 @@ export default function GamesHome() {
       <Header
         title="Family Card Games"
         right={
-          <Link href="/games/players" className="flex h-10 items-center gap-2 rounded-full bg-white px-4 font-display text-lg font-medium text-brand-dark hover:bg-brand-pale">
-            <Users className="h-5 w-5" aria-hidden="true" />
-            <span>Players</span>
-          </Link>
+          <div className="flex gap-2">
+            <HeaderLink href="/games/stats" icon={ChartColumn} label="Stats" />
+            <HeaderLink href="/games/players" icon={Users} label="Players" />
+          </div>
         }
       />
       <Page>
@@ -56,5 +56,19 @@ export default function GamesHome() {
         </button>
       </Page>
     </>
+  );
+}
+
+// Icon-only on phones so the title keeps its room; labeled from tablet width up.
+function HeaderLink({ href, icon: Icon, label }: { href: string; icon: typeof Users; label: string }) {
+  return (
+    <Link
+      href={href}
+      aria-label={label}
+      className="flex h-10 w-10 items-center justify-center gap-2 rounded-full bg-white font-display text-lg font-medium text-brand-dark hover:bg-brand-pale sm:w-auto sm:px-4"
+    >
+      <Icon className="h-5 w-5" aria-hidden="true" />
+      <span className="hidden sm:inline">{label}</span>
+    </Link>
   );
 }
