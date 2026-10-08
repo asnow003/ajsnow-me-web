@@ -3,13 +3,14 @@
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useState } from 'react';
-import { ChevronDown, Crown, Flag, Radio, RotateCcw, Sparkles, Trophy } from 'lucide-react';
+import { ChevronDown, Crown, Flag, Pencil, Radio, RotateCcw, Sparkles, Trophy } from 'lucide-react';
 import { useGames } from '@/components/games/GamesShell';
 import { useGame, usePlayerMap } from '@/components/games/hooks';
+import { SCORERS, type GameScorer } from '@/components/games/scorers';
 import { ConfirmDialog, Header, Loading, Page, PlayerDot } from '@/components/games/ui';
 import { getGameDef, type GameDef } from '@/lib/games/registry';
 import { leaders, totals } from '@/lib/games/scoring';
-import type { Game, Player } from '@/lib/games/types';
+import type { Game, Player, Round } from '@/lib/games/types';
 
 export default function PlayGame({ type }: { type: string }) {
   const def = getGameDef(type)!;
@@ -18,6 +19,8 @@ export default function PlayGame({ type }: { type: string }) {
   const game = useGame(id);
   const players = usePlayerMap();
   const [finishing, setFinishing] = useState(false);
+  const [editRound, setEditRound] = useState<number | null>(null);
+  const scorer = SCORERS[type];
 
   const back = `/games/${type}`;
 
@@ -53,6 +56,10 @@ export default function PlayGame({ type }: { type: string }) {
   const reopen = () =>
     store.updateGame(game.id, { status: 'in-progress', winnerIds: [], completedAt: null, updatedAt: Date.now() });
 
+  const saveRounds = (rounds: Round[]) => store.updateGame(game.id, { rounds, updatedAt: Date.now() });
+
+  const progress = scorer?.progress(game);
+
   const finish = (winnerIds: string[]) => {
     const now = Date.now();
     store.updateGame(game.id, { status: 'completed', winnerIds, completedAt: now, updatedAt: now });
@@ -67,13 +74,15 @@ export default function PlayGame({ type }: { type: string }) {
         color={def.color}
         right={
           <span className="flex items-center gap-1.5 rounded-full bg-white px-3 py-1 font-display text-base font-medium" style={{ color: def.color }}>
-            {playing ? (
+            {!playing ? (
+              'Finished'
+            ) : progress?.done ? (
+              'All rounds done'
+            ) : (
               <>
                 <Radio className="h-4 w-4" aria-hidden="true" />
-                Round {game.rounds.length + 1}
+                Round {progress ? `${progress.current} of ${progress.total}` : game.rounds.length + 1}
               </>
-            ) : (
-              'Finished'
             )}
           </span>
         }
@@ -97,25 +106,48 @@ export default function PlayGame({ type }: { type: string }) {
           </div>
         )}
 
-        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_300px] lg:items-start">
-          <Scoreboard game={game} seated={seated} def={def} />
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start">
+          <div className="lg:col-start-1 lg:row-span-2 lg:row-start-1">
+            <Scoreboard
+              game={game}
+              seated={seated}
+              def={def}
+              scorer={scorer}
+              onEditRound={playing && scorer ? setEditRound : undefined}
+            />
+          </div>
 
           {playing && (
-            <aside className="flex flex-col gap-3">
-              <div className="rounded-3xl border-[3px] border-dashed p-5 text-center" style={{ borderColor: `${def.color}55` }}>
-                <Sparkles className="mx-auto h-7 w-7" style={{ color: def.color }} aria-hidden="true" />
-                <p className="mt-2 font-display text-lg font-medium">{def.name} scoring is coming next</p>
-                <p className="mt-1 text-sm text-ink/60">For now you can finish the game and pick the winner.</p>
-              </div>
-              <button
-                onClick={() => setFinishing(true)}
-                className="flex h-14 items-center justify-center gap-2 rounded-2xl border-[3px] bg-white font-display text-xl font-semibold shadow-sm hover:bg-ink/5"
-                style={{ borderColor: def.color, color: def.color }}
-              >
-                <Flag className="h-6 w-6" aria-hidden="true" />
-                Finish game
-              </button>
+            <aside className="order-first lg:order-none lg:col-start-2 lg:row-start-1">
+              {scorer ? (
+                <scorer.Panel
+                  game={game}
+                  def={def}
+                  players={players}
+                  editRound={editRound}
+                  onDoneEditing={() => setEditRound(null)}
+                  saveRounds={saveRounds}
+                  onAllRoundsDone={() => setFinishing(true)}
+                />
+              ) : (
+                <div className="rounded-3xl border-[3px] border-dashed p-5 text-center" style={{ borderColor: `${def.color}55` }}>
+                  <Sparkles className="mx-auto h-7 w-7" style={{ color: def.color }} aria-hidden="true" />
+                  <p className="mt-2 font-display text-lg font-medium">{def.name} scoring is coming next</p>
+                  <p className="mt-1 text-sm text-ink/60">For now you can finish the game and pick the winner.</p>
+                </div>
+              )}
             </aside>
+          )}
+
+          {playing && (
+            <button
+              onClick={() => setFinishing(true)}
+              className="flex h-14 items-center justify-center gap-2 rounded-2xl border-[3px] bg-white font-display text-xl font-semibold shadow-sm hover:bg-ink/5 lg:col-start-2 lg:row-start-2"
+              style={{ borderColor: def.color, color: def.color }}
+            >
+              <Flag className="h-6 w-6" aria-hidden="true" />
+              Finish game
+            </button>
           )}
         </div>
       </Page>
@@ -127,10 +159,25 @@ export default function PlayGame({ type }: { type: string }) {
   );
 }
 
-function Scoreboard({ game, seated, def }: { game: Game; seated: (Player | undefined)[]; def: GameDef }) {
+function Scoreboard({
+  game,
+  seated,
+  def,
+  scorer,
+  onEditRound,
+}: {
+  game: Game;
+  seated: (Player | undefined)[];
+  def: GameDef;
+  scorer?: GameScorer;
+  onEditRound?: (index: number) => void;
+}) {
   const t = totals(game);
   const lead = new Set(leaders(game, def.winRule));
   const [open, setOpen] = useState<string | null>(null);
+  const last = game.rounds[game.rounds.length - 1];
+  const live = scorer && last && !scorer.canEdit(last) ? last : null;
+  const editable = (r: Round) => Boolean(onEditRound && scorer?.canEdit(r));
 
   return (
     <section className="rounded-3xl bg-white p-3 shadow-sm sm:p-5">
@@ -148,6 +195,7 @@ function Scoreboard({ game, seated, def }: { game: Game; seated: (Player | undef
                 <span className="truncate">{seated[i]?.name ?? 'Unknown'}</span>
                 {lead.has(pid) && <Crown className="h-5 w-5 shrink-0" style={{ color: def.color }} aria-label="Leading" />}
               </span>
+              {live && <span className="text-sm text-ink/60">{scorer!.cell(live, pid).detail}</span>}
               <span className="font-display text-3xl font-semibold tabular-nums">{t[pid]}</span>
               <ChevronDown className={`h-5 w-5 text-ink/40 transition ${open === pid ? 'rotate-180' : ''}`} aria-hidden="true" />
             </button>
@@ -155,12 +203,22 @@ function Scoreboard({ game, seated, def }: { game: Game; seated: (Player | undef
               <div className="border-t border-ink/10 px-4 py-2 text-ink/70">
                 {game.rounds.length === 0
                   ? 'No rounds yet'
-                  : game.rounds.map((r, n) => (
-                      <div key={n} className="flex justify-between py-0.5 tabular-nums">
-                        <span>Round {n + 1}</span>
-                        <span>{r.scores[pid] ?? 0}</span>
-                      </div>
-                    ))}
+                  : game.rounds.map((r, n) => {
+                      const c = scorer?.cell(r, pid);
+                      return (
+                        <button
+                          key={n}
+                          disabled={!editable(r)}
+                          onClick={() => onEditRound?.(n)}
+                          className="flex w-full items-center gap-2 rounded-lg px-1 py-1 text-left tabular-nums enabled:hover:bg-ink/5"
+                        >
+                          <span className="flex-1">Round {scorer ? scorer.roundLabel(r, n) : n + 1}</span>
+                          {c?.detail && <span className="text-sm text-ink/50">{c.detail}</span>}
+                          <span className="w-10 text-right font-medium text-ink">{c ? (c.score ?? '') : (r.scores[pid] ?? 0)}</span>
+                          {editable(r) && <Pencil className="h-3.5 w-3.5 text-ink/30" aria-hidden="true" />}
+                        </button>
+                      );
+                    })}
               </div>
             )}
           </li>
@@ -185,11 +243,31 @@ function Scoreboard({ game, seated, def }: { game: Game; seated: (Player | undef
           </thead>
           <tbody className="text-lg">
             {game.rounds.map((r, n) => (
-              <tr key={n} className="border-t border-ink/10">
-                <td className="py-2 text-left text-ink/50">{n + 1}</td>
-                {game.playerIds.map((pid) => (
-                  <td key={pid} className="py-2">{r.scores[pid] ?? 0}</td>
-                ))}
+              <tr
+                key={n}
+                onClick={editable(r) ? () => onEditRound?.(n) : undefined}
+                title={editable(r) ? 'Tap to correct this round' : undefined}
+                className={`border-t border-ink/10 ${editable(r) ? 'cursor-pointer hover:bg-cream' : ''} ${r === live ? 'bg-cream' : ''}`}
+              >
+                <td className="py-2 text-left text-ink/50">{scorer ? scorer.roundLabel(r, n) : n + 1}</td>
+                {game.playerIds.map((pid) => {
+                  const c = scorer?.cell(r, pid);
+                  return (
+                    <td key={pid} className="py-2">
+                      {c ? (
+                        c.score === null ? (
+                          <span className="text-base text-ink/60">{c.detail}</span>
+                        ) : (
+                          <>
+                            {c.score} {c.detail && <span className="text-sm text-ink/40">{c.detail}</span>}
+                          </>
+                        )
+                      ) : (
+                        (r.scores[pid] ?? 0)
+                      )}
+                    </td>
+                  );
+                })}
               </tr>
             ))}
             {game.rounds.length === 0 && (
@@ -216,6 +294,12 @@ function Scoreboard({ game, seated, def }: { game: Game; seated: (Player | undef
           </tfoot>
         </table>
       </div>
+      {onEditRound && game.rounds.some(editable) && (
+        <p className="mt-3 text-center text-sm text-ink/50">
+          <span className="md:hidden">Tap a player to see their rounds, then tap a round to correct it.</span>
+          <span className="hidden md:inline">Tap a round to correct it.</span>
+        </p>
+      )}
     </section>
   );
 }

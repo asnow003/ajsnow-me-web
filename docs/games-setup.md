@@ -67,4 +67,4 @@ site's code could try them all. That's fine for game scores. Don't store anythin
 ## Local development
 
 `npm run dev` uses a local test mode until `firebase-config.ts` is filled in. Data stays in the
-browser and the PIN is `0000`. To force test mode after setup, run `NEXT_PUBLIC_GAMES_LOCAL=1 npm run dev`.
+browser and the PIN is `0000`. After setup, `npm run dev:local` uses test mode so you can try things without touching real data.
