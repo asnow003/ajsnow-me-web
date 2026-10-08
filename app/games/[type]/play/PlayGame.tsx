@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { ChevronDown, Crown, Flag, Pencil, Radio, RotateCcw, Sparkles, Trophy } from 'lucide-react';
 import { useGames } from '@/components/games/GamesShell';
 import { useGame, usePlayerMap } from '@/components/games/hooks';
+import { RulesCard } from '@/components/games/RulesCard';
 import { SCORERS, type GameScorer } from '@/components/games/scorers';
 import { ConfirmDialog, Header, Loading, Page, PlayerDot } from '@/components/games/ui';
 import { getGameDef, type GameDef } from '@/lib/games/registry';
@@ -59,6 +60,7 @@ export default function PlayGame({ type }: { type: string }) {
   const saveRounds = (rounds: Round[]) => store.updateGame(game.id, { rounds, updatedAt: Date.now() });
 
   const progress = scorer?.progress(game);
+  const noun = scorer?.roundNoun ?? 'Round';
 
   const finish = (winnerIds: string[]) => {
     const now = Date.now();
@@ -77,11 +79,11 @@ export default function PlayGame({ type }: { type: string }) {
             {!playing ? (
               'Finished'
             ) : progress?.done ? (
-              'All rounds done'
+              `All ${noun.toLowerCase()}s done`
             ) : (
               <>
                 <Radio className="h-4 w-4" aria-hidden="true" />
-                Round {progress ? `${progress.current} of ${progress.total}` : game.rounds.length + 1}
+                {noun} {progress ? `${progress.current} of ${progress.total}` : game.rounds.length + 1}
               </>
             )}
           </span>
@@ -107,7 +109,7 @@ export default function PlayGame({ type }: { type: string }) {
         )}
 
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start">
-          <div className="lg:col-start-1 lg:row-span-2 lg:row-start-1">
+          <div className="flex flex-col gap-5 lg:col-start-1 lg:row-span-2 lg:row-start-1">
             <Scoreboard
               game={game}
               seated={seated}
@@ -115,6 +117,11 @@ export default function PlayGame({ type }: { type: string }) {
               scorer={scorer}
               onEditRound={playing && scorer ? setEditRound : undefined}
             />
+            {scorer?.Rules && (
+              <RulesCard>
+                <scorer.Rules />
+              </RulesCard>
+            )}
           </div>
 
           {playing && (
@@ -178,6 +185,7 @@ function Scoreboard({
   const last = game.rounds[game.rounds.length - 1];
   const live = scorer && last && !scorer.canEdit(last) ? last : null;
   const editable = (r: Round) => Boolean(onEditRound && scorer?.canEdit(r));
+  const noun = (scorer?.roundNoun ?? 'Round').toLowerCase();
 
   return (
     <section className="rounded-3xl bg-white p-3 shadow-sm sm:p-5">
@@ -212,7 +220,9 @@ function Scoreboard({
                           onClick={() => onEditRound?.(n)}
                           className="flex w-full items-center gap-2 rounded-lg px-1 py-1 text-left tabular-nums enabled:hover:bg-ink/5"
                         >
-                          <span className="flex-1">Round {scorer ? scorer.roundLabel(r, n) : n + 1}</span>
+                          <span className="flex-1">
+                            {scorer?.roundNoun ?? 'Round'} {scorer ? scorer.roundLabel(r, n) : n + 1}
+                          </span>
                           {c?.detail && <span className="text-sm text-ink/50">{c.detail}</span>}
                           <span className="w-10 text-right font-medium text-ink">{c ? (c.score ?? '') : (r.scores[pid] ?? 0)}</span>
                           {editable(r) && <Pencil className="h-3.5 w-3.5 text-ink/30" aria-hidden="true" />}
@@ -230,7 +240,7 @@ function Scoreboard({
         <table className="w-full table-fixed text-center tabular-nums">
           <thead>
             <tr>
-              <th className="w-20 pb-3 text-left text-sm font-normal text-ink/50">Round</th>
+              <th className="w-20 pb-3 text-left text-sm font-normal text-ink/50">{scorer?.roundNoun ?? 'Round'}</th>
               {game.playerIds.map((pid, i) => (
                 <th key={pid} className="min-w-[90px] pb-3 font-normal">
                   <div className="flex flex-col items-center gap-1">
@@ -296,8 +306,8 @@ function Scoreboard({
       </div>
       {onEditRound && game.rounds.some(editable) && (
         <p className="mt-3 text-center text-sm text-ink/50">
-          <span className="md:hidden">Tap a player to see their rounds, then tap a round to correct it.</span>
-          <span className="hidden md:inline">Tap a round to correct it.</span>
+          <span className="md:hidden">Tap a player to see their {noun}s, then tap one to correct it.</span>
+          <span className="hidden md:inline">Tap a {noun} to correct it.</span>
         </p>
       )}
     </section>

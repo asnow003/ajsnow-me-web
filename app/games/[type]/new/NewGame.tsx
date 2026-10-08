@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { Check, Search, UserPlus } from 'lucide-react';
 import { useGames } from '@/components/games/GamesShell';
 import { usePlayers } from '@/components/games/hooks';
+import { SCORERS } from '@/components/games/scorers';
 import { Header, Loading, Page, PlayerDot } from '@/components/games/ui';
 import { nextPlayerColor } from '@/lib/games/colors';
 import { cleanName, findByName } from '@/lib/games/players';
@@ -19,6 +20,8 @@ export default function NewGame({ type }: { type: string }) {
   const [query, setQuery] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const scorer = SCORERS[type];
+  const [settings, setSettings] = useState<Record<string, number>>(scorer?.defaultSettings ?? {});
 
   if (!players) {
     return (
@@ -74,6 +77,7 @@ export default function NewGame({ type }: { type: string }) {
         createdAt: now,
         updatedAt: now,
         completedAt: null,
+        ...(scorer?.defaultSettings && { settings }),
       });
       router.push(`/games/${type}/play?id=${id}`);
     } catch {
@@ -168,6 +172,11 @@ export default function NewGame({ type }: { type: string }) {
               ))}
               {seats.length === 0 && <li className="text-ink/50">Nobody picked yet</li>}
             </ol>
+            {scorer?.Setup && (
+              <div className="mb-3 border-b border-ink/10 pb-3 lg:mt-4 lg:border-t lg:pt-3">
+                <scorer.Setup settings={settings} onChange={setSettings} color={def.color} />
+              </div>
+            )}
             {error && <p className="mb-2 text-center font-medium text-danger lg:mt-3">{error}</p>}
             <button
               onClick={start}

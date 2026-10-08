@@ -22,6 +22,7 @@ export interface Game {
   playerIds: string[]; // seat order
   rounds: Round[];
   winnerIds: string[]; // more than one on a tie
+  settings?: Record<string, number>; // per-game options chosen at the start, e.g. { holes: 9 }
   createdAt: number;
   updatedAt: number;
   completedAt: number | null;

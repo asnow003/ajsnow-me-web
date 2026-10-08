@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Check, PartyPopper, Pencil } from 'lucide-react';
+import { RulesSection } from '@/components/games/RulesCard';
 import { PlayerDot } from '@/components/games/ui';
 import {
   SUITS, bidOrder, dealerIndex, inputsOf, isPending, roundName, roundScore, roundSequence, scoresFor,
@@ -18,6 +19,7 @@ function SuitMark({ suit }: { suit: Suit | null }) {
 
 export const estimationScorer: GameScorer = {
   Panel: EstimationPanel,
+  Rules: EstimationRules,
 
   progress(game) {
     const total = roundSequence(game.playerIds.length).length;
@@ -451,5 +453,32 @@ function NumberRow({
         ))}
       </div>
     </div>
+  );
+}
+
+function EstimationRules() {
+  return (
+    <>
+      <p>Bid how many tricks you&apos;ll take each round. Highest total after the last round wins.</p>
+      <RulesSection title="Rounds">
+        <p>
+          1, 2, 3, 4, 5, 6, 7 cards, then 7 No Trump, 7 Misère, then back down 6, 5, 4, 3, 2, 1. With too many players
+          for everyone to get 7 cards plus a trump card, the top round is smaller (6 for 8 players, and so on).
+        </p>
+      </RulesSection>
+      <RulesSection title="Bidding">
+        <p>
+          The dealer turns up trump, then bidding starts left of the dealer and ends with the dealer. In the Misère
+          round everyone bids 0, and there&apos;s no trump in No Trump or Misère.
+        </p>
+      </RulesSection>
+      <RulesSection title="Scoring">
+        <ul className="list-disc space-y-0.5 pl-5">
+          <li>Make your bid exactly: 10 points plus 2 for every trick you bid.</li>
+          <li>Miss it: lose 2 points for every trick you were off by.</li>
+        </ul>
+        <p className="mt-1 text-ink/60">Bid 0, take 0: 10. Bid 2, take 2: 14. Bid 2, take 1: −2.</p>
+      </RulesSection>
+    </>
   );
 }
