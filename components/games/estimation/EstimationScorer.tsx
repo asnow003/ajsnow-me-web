@@ -291,12 +291,23 @@ function RoundEditor({
   const totalTricks = Object.values(tricks).reduce((a, b) => a + b, 0);
   const needsTrump = kind === 'normal' && showBids;
 
+  // What's still needed before the round can be saved. The save button stays off until this is null.
+  const names = (ids: string[]) => ids.map((p) => players.get(p)?.name).join(', ');
+  const missingBids = showBids ? order.filter((p) => bids[p] === undefined) : [];
+  const missingTricks = showTricks ? order.filter((p) => tricks[p] === undefined) : [];
+  const waiting =
+    needsTrump && !trump
+      ? 'Pick the trump suit'
+      : missingBids.length
+        ? `Waiting on ${missingBids.length === order.length ? 'everyone' : names(missingBids)} to bid`
+        : missingTricks.length
+          ? `Waiting on tricks for ${missingTricks.length === order.length ? 'everyone' : names(missingTricks)}`
+          : showTricks && totalTricks !== cards
+            ? `Tricks need to add up to ${cards}`
+            : null;
+
   const save = async () => {
-    if (needsTrump && !trump) return setError('Pick the trump suit.');
-    if (showBids && order.some((p) => bids[p] === undefined)) return setError('Enter a bid for everyone.');
-    if (showTricks && order.some((p) => tricks[p] === undefined)) return setError('Enter tricks for everyone.');
-    if (showTricks && totalTricks !== cards)
-      return setError(`Tricks add up to ${totalTricks}, but ${cards} ${cards === 1 ? 'was' : 'were'} played.`);
+    if (waiting) return;
     setBusy(true);
     try {
       await onSave({ cards, kind, trump: kind === 'normal' ? trump : null, bids, tricks: showTricks ? tricks : null });
@@ -400,12 +411,13 @@ function RoundEditor({
               : `${-left} too many tricks counted`
           : `Bids so far: ${totalBid} for ${cards} ${cards === 1 ? 'card' : 'cards'}`}
       </p>
+      {waiting && <p className="mt-1 text-center text-sm font-medium text-ink/70">{waiting}</p>}
       {error && <p className="mt-2 text-center font-medium text-danger">{error}</p>}
 
       <button
         onClick={save}
-        disabled={busy}
-        className="mt-3 flex h-14 w-full items-center justify-center gap-2 rounded-2xl font-display text-xl font-semibold text-white shadow-md active:scale-[0.98] disabled:opacity-70"
+        disabled={busy || waiting !== null}
+        className="mt-3 flex h-14 w-full items-center justify-center gap-2 rounded-2xl font-display text-xl font-semibold text-white shadow-md transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none disabled:active:scale-100"
         style={{ background: def.color }}
       >
         <Check className="h-6 w-6" aria-hidden="true" />

@@ -61,6 +61,8 @@ export default function PlayGame({ type }: { type: string }) {
 
   const progress = scorer?.progress(game);
   const noun = scorer?.roundNoun ?? 'Round';
+  // Ending before the last round is quitting; the game is still saved as finished.
+  const quitting = Boolean(progress && !progress.done);
 
   const finish = (winnerIds: string[]) => {
     const now = Date.now();
@@ -108,8 +110,9 @@ export default function PlayGame({ type }: { type: string }) {
           </div>
         )}
 
-        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start">
-          <div className="flex flex-col gap-5 lg:col-start-1 lg:row-span-2 lg:row-start-1">
+        {/* While playing on wider screens, round entry sits on the left and the scoreboard on the right. */}
+        <div className={`grid gap-5 lg:items-start ${playing ? 'lg:grid-cols-[360px_minmax(0,1fr)]' : ''}`}>
+          <div className={`flex flex-col gap-5 ${playing ? 'lg:col-start-2 lg:row-span-2 lg:row-start-1' : ''}`}>
             <Scoreboard
               game={game}
               seated={seated}
@@ -125,7 +128,7 @@ export default function PlayGame({ type }: { type: string }) {
           </div>
 
           {playing && (
-            <aside className="order-first lg:order-none lg:col-start-2 lg:row-start-1">
+            <aside className="order-first lg:order-none lg:col-start-1 lg:row-start-1">
               {scorer ? (
                 <scorer.Panel
                   game={game}
@@ -149,18 +152,25 @@ export default function PlayGame({ type }: { type: string }) {
           {playing && (
             <button
               onClick={() => setFinishing(true)}
-              className="flex h-14 items-center justify-center gap-2 rounded-2xl border-[3px] bg-white font-display text-xl font-semibold shadow-sm hover:bg-ink/5 lg:col-start-2 lg:row-start-2"
+              className="flex h-14 items-center justify-center gap-2 rounded-2xl border-[3px] bg-white font-display text-xl font-semibold shadow-sm hover:bg-ink/5 lg:col-start-1 lg:row-start-2"
               style={{ borderColor: def.color, color: def.color }}
             >
               <Flag className="h-6 w-6" aria-hidden="true" />
-              Finish game
+              {quitting ? 'Quit game' : 'Finish game'}
             </button>
           )}
         </div>
       </Page>
 
       {finishing && (
-        <FinishDialog game={game} seated={seated} def={def} onCancel={() => setFinishing(false)} onFinish={finish} />
+        <FinishDialog
+          game={game}
+          seated={seated}
+          def={def}
+          quitting={quitting}
+          onCancel={() => setFinishing(false)}
+          onFinish={finish}
+        />
       )}
     </>
   );
@@ -318,12 +328,14 @@ function FinishDialog({
   game,
   seated,
   def,
+  quitting,
   onCancel,
   onFinish,
 }: {
   game: Game;
   seated: (Player | undefined)[];
   def: GameDef;
+  quitting: boolean;
   onCancel: () => void;
   onFinish: (winnerIds: string[]) => void;
 }) {
@@ -333,11 +345,15 @@ function FinishDialog({
 
   return (
     <ConfirmDialog
-      title="Who won?"
-      body={`${def.winRule === 'high' ? 'Highest' : 'Lowest'} total wins in ${def.name}. Change it if the scores don't tell the whole story.`}
-      confirmLabel="Finish game"
+      title={quitting ? 'Quit this game?' : 'Who won?'}
+      body={
+        quitting
+          ? "It'll be saved as finished where you stopped. Pick who won, or leave everyone unselected for no winner."
+          : `${def.winRule === 'high' ? 'Highest' : 'Lowest'} total wins in ${def.name}. Change it if the scores don't tell the whole story.`
+      }
+      confirmLabel={quitting ? 'Quit game' : 'Finish game'}
       onCancel={onCancel}
-      onConfirm={() => (picked.length ? onFinish(picked) : setError('Pick at least one winner.'))}
+      onConfirm={() => (picked.length || quitting ? onFinish(picked) : setError('Pick at least one winner.'))}
     >
       <div className="mt-4 flex flex-col gap-2">
         {game.playerIds.map((pid, i) => {

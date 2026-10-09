@@ -111,9 +111,15 @@ function HoleEditor({
     set(pid, v.startsWith('-') ? v.slice(1) : `-${v}`);
   };
 
+  const parsed = Object.fromEntries(game.playerIds.map((p) => [p, Number.parseInt(values[p], 10)]));
+  const missing = game.playerIds.filter((p) => Number.isNaN(parsed[p]));
+  // The save button stays off until everyone has a score.
+  const waiting = missing.length
+    ? `Waiting on ${missing.length === game.playerIds.length ? 'everyone' : missing.map((p) => players.get(p)?.name).join(', ')}`
+    : null;
+
   const save = async () => {
-    const parsed = Object.fromEntries(game.playerIds.map((p) => [p, Number.parseInt(values[p], 10)]));
-    if (game.playerIds.some((p) => Number.isNaN(parsed[p]))) return setError('Enter a score for everyone.');
+    if (waiting) return;
     setBusy(true);
     try {
       await onSave(parsed);
@@ -175,11 +181,12 @@ function HoleEditor({
         })}
       </ul>
 
+      {waiting && <p className="mt-3 text-center text-sm font-medium text-ink/70">{waiting}</p>}
       {error && <p className="mt-3 text-center font-medium text-danger">{error}</p>}
       <button
         onClick={save}
-        disabled={busy}
-        className="mt-4 flex h-14 w-full items-center justify-center gap-2 rounded-2xl font-display text-xl font-semibold text-white shadow-md active:scale-[0.98] disabled:opacity-70"
+        disabled={busy || waiting !== null}
+        className="mt-3 flex h-14 w-full items-center justify-center gap-2 rounded-2xl font-display text-xl font-semibold text-white shadow-md transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none disabled:active:scale-100"
         style={{ background: color }}
       >
         <Check className="h-6 w-6" aria-hidden="true" />
