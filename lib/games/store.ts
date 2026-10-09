@@ -20,6 +20,8 @@ export interface Backend {
   mode: 'firestore' | 'local';
   // Returns the family id the PIN key unlocks, or null for a wrong PIN.
   lookupPin(pinKey: string): Promise<string | null>;
+  // Same for the admin PIN, which unlocks deleting, reopening, past-round edits and player management.
+  lookupAdminPin(adminKey: string): Promise<string | null>;
   family(familyId: string): FamilyStore;
 }
 

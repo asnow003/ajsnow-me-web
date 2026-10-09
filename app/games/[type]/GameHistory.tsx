@@ -12,7 +12,7 @@ import type { Game, Player } from '@/lib/games/types';
 
 export default function GameHistory({ type }: { type: string }) {
   const def = getGameDef(type)!;
-  const { store } = useGames();
+  const { store, requireAdmin } = useGames();
   const games = useAllGames()?.filter((g) => g.type === type);
   const players = usePlayerMap();
   const [menuFor, setMenuFor] = useState<string | null>(null);
@@ -102,7 +102,7 @@ export default function GameHistory({ type }: { type: string }) {
                       <div className="flex min-w-0 flex-1 items-center gap-3 py-1">{summary}</div>
                     )}
                     {playing ? (
-                      <IconButton label="Delete game" onClick={() => setDeleting(game)}>
+                      <IconButton label="Delete game" onClick={() => requireAdmin(() => setDeleting(game))}>
                         <Trash2 className="h-5 w-5" />
                       </IconButton>
                     ) : (
@@ -118,8 +118,8 @@ export default function GameHistory({ type }: { type: string }) {
                   {menuFor === game.id && (
                     <div className="flex flex-wrap gap-2 border-t border-ink/10 bg-cream/60 p-2">
                       <MenuLink href={`/games/${type}/play?id=${game.id}`} icon={Eye} label="View" />
-                      <MenuButton icon={RotateCcw} label="Reopen" onClick={() => reopen(game)} />
-                      <MenuButton icon={Trash2} label="Delete" danger onClick={() => setDeleting(game)} />
+                      <MenuButton icon={RotateCcw} label="Reopen" onClick={() => requireAdmin(() => reopen(game))} />
+                      <MenuButton icon={Trash2} label="Delete" danger onClick={() => requireAdmin(() => setDeleting(game))} />
                     </div>
                   )}
                 </li>

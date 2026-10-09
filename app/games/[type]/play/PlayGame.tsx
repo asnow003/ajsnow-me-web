@@ -16,7 +16,7 @@ import type { Game, Player, Round } from '@/lib/games/types';
 export default function PlayGame({ type }: { type: string }) {
   const def = getGameDef(type)!;
   const id = useSearchParams().get('id') ?? '';
-  const { store } = useGames();
+  const { store, isAdmin, requireAdmin } = useGames();
   const game = useGame(id);
   const players = usePlayerMap();
   const [finishing, setFinishing] = useState(false);
@@ -103,7 +103,7 @@ export default function PlayGame({ type }: { type: string }) {
               </div>
               <div className="text-done-text/80">Reopen it if a score needs fixing.</div>
             </div>
-            <button onClick={reopen} className="flex h-12 items-center gap-2 rounded-xl bg-white px-5 font-display text-lg font-medium shadow-sm hover:bg-white/80">
+            <button onClick={() => requireAdmin(reopen)} className="flex h-12 items-center gap-2 rounded-xl bg-white px-5 font-display text-lg font-medium shadow-sm hover:bg-white/80">
               <RotateCcw className="h-5 w-5" aria-hidden="true" />
               Reopen game
             </button>
@@ -118,7 +118,8 @@ export default function PlayGame({ type }: { type: string }) {
               seated={seated}
               def={def}
               scorer={scorer}
-              onEditRound={playing && scorer ? setEditRound : undefined}
+              onEditRound={playing && scorer ? (i) => requireAdmin(() => setEditRound(i)) : undefined}
+              editNeedsAdmin={!isAdmin}
             />
             {scorer?.Rules && (
               <RulesCard>
@@ -182,12 +183,14 @@ function Scoreboard({
   def,
   scorer,
   onEditRound,
+  editNeedsAdmin,
 }: {
   game: Game;
   seated: (Player | undefined)[];
   def: GameDef;
   scorer?: GameScorer;
   onEditRound?: (index: number) => void;
+  editNeedsAdmin?: boolean;
 }) {
   const t = totals(game);
   const lead = new Set(leaders(game, def.winRule));
@@ -318,6 +321,7 @@ function Scoreboard({
         <p className="mt-3 text-center text-sm text-ink/50">
           <span className="md:hidden">Tap a player to see their {noun}s, then tap one to correct it.</span>
           <span className="hidden md:inline">Tap a {noun} to correct it.</span>
+          {editNeedsAdmin && ' Needs the admin PIN.'}
         </p>
       )}
     </section>

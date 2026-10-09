@@ -1,10 +1,11 @@
-import { derivePinKey } from './pin';
+import { deriveAdminPinKey, derivePinKey } from './pin';
 import type { Backend, FamilyStore } from './store';
 import type { Game, NewGame, NewPlayer, Player } from './types';
 
-// Development stand-in for Firestore. PIN is 0000. Changes sync live between tabs.
+// Development stand-in for Firestore. PIN is 0000, admin PIN is 9999. Changes sync live between tabs.
 const KEY = 'games.local.v1';
 export const LOCAL_PIN = '0000';
+export const LOCAL_ADMIN_PIN = '9999';
 
 interface Data {
   players: Record<string, NewPlayer>;
@@ -75,6 +76,9 @@ export const localBackend: Backend = {
   mode: 'local',
   async lookupPin(pinKey) {
     return pinKey === (await derivePinKey(LOCAL_PIN)) ? 'local' : null;
+  },
+  async lookupAdminPin(adminKey) {
+    return adminKey === (await deriveAdminPinKey(LOCAL_ADMIN_PIN)) ? 'local' : null;
   },
   family: () => store,
 };

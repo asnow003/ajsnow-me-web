@@ -10,6 +10,11 @@ service cloud.firestore {
       allow get: if true;
     }
 
+    // Same idea for the admin PIN. It only gates actions inside the app; see docs/games-setup.md.
+    match /adminPins/{adminKey} {
+      allow get: if true;
+    }
+
     match /families/{familyId}/players/{playerId} {
       allow read, delete: if true;
       allow create, update: if request.resource.data.name is string

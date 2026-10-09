@@ -45,6 +45,28 @@ of 50,000 reads and 20,000 writes per day, and Spark has no billing, so it can't
    - Add a field `familyId`, type **string**, with the value from the script. Click **Save**.
 3. Keep the `familyId` somewhere safe. You'll need it to change the PIN.
 
+## 6. Set the admin PIN
+
+The admin PIN protects deleting games, reopening finished games, editing past rounds, and renaming,
+hiding or deleting players. Once entered, it stays unlocked on that device for 10 minutes.
+
+1. Make sure the published rules include the `adminPins` block from [`firestore.rules`](../firestore.rules).
+2. Run, replacing `5678` with the admin PIN and `<familyId>` with the family's id from step 5:
+
+   ```bash
+   node scripts/pin-hash.mjs --admin 5678 <familyId>
+   ```
+
+   If you've lost the familyId, it's the `familyId` field on your document in the `pins` collection.
+3. In Firestore → **Data**, create a collection `adminPins` with a document using the printed ID and a
+   string field `familyId` with the same value.
+
+To change the admin PIN, add a new `adminPins` document the same way and delete the old one.
+
+The admin PIN only gates actions inside the app. Anyone with the family PIN could still change data
+directly with the browser's developer tools, so treat it as a lock against playing around, not a
+security boundary.
+
 ## Changing the PIN later
 
 1. Run `node scripts/pin-hash.mjs <new PIN> <familyId>`, with the familyId from step 5.
@@ -67,4 +89,4 @@ site's code could try them all. That's fine for game scores. Don't store anythin
 ## Local development
 
 `npm run dev` uses a local test mode until `firebase-config.ts` is filled in. Data stays in the
-browser and the PIN is `0000`. After setup, `npm run dev:local` uses test mode so you can try things without touching real data.
+browser, the PIN is `0000`, and the admin PIN is `9999`. After setup, `npm run dev:local` uses test mode so you can try things without touching real data.

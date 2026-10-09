@@ -11,7 +11,7 @@ import { cleanName, findByName, MAX_NAME_LENGTH } from '@/lib/games/players';
 import type { Player } from '@/lib/games/types';
 
 export default function PlayersPage() {
-  const { store } = useGames();
+  const { store, requireAdmin } = useGames();
   const players = usePlayers();
   const games = useAllGames();
   const [newName, setNewName] = useState('');
@@ -83,8 +83,9 @@ export default function PlayersPage() {
                 players={players}
                 {...stats(p.id)}
                 onRename={(name) => store.updatePlayer(p.id, { name })}
-                onHide={() => store.updatePlayer(p.id, { hidden: true })}
-                onDelete={() => setDeleting(p)}
+                onHide={() => requireAdmin(() => store.updatePlayer(p.id, { hidden: true }))}
+                onDelete={() => requireAdmin(() => setDeleting(p))}
+                onStartRename={(start) => requireAdmin(start)}
               />
             ))}
             {visible.length === 0 && (
@@ -104,7 +105,7 @@ export default function PlayersPage() {
                     <PlayerDot player={{ ...p, color: '#888780' }} />
                     <span className="flex-1 font-display text-lg">{p.name}</span>
                     <button
-                      onClick={() => store.updatePlayer(p.id, { hidden: false })}
+                      onClick={() => requireAdmin(() => store.updatePlayer(p.id, { hidden: false }))}
                       className="flex h-10 items-center gap-2 rounded-xl px-3 font-medium text-brand hover:bg-brand-pale"
                     >
                       <Eye className="h-5 w-5" aria-hidden="true" />
@@ -143,6 +144,7 @@ function PlayerRow({
   onRename,
   onHide,
   onDelete,
+  onStartRename,
 }: {
   player: Player;
   players: Player[];
@@ -151,6 +153,7 @@ function PlayerRow({
   onRename: (name: string) => void;
   onHide: () => void;
   onDelete: () => void;
+  onStartRename: (start: () => void) => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(player.name);
@@ -215,7 +218,7 @@ function PlayerRow({
                 {wins} {wins === 1 ? 'win' : 'wins'} · {played} {played === 1 ? 'game' : 'games'}
               </div>
             </Link>
-            <button className={iconButton} aria-label={`Rename ${player.name}`} onClick={() => setEditing(true)}>
+            <button className={iconButton} aria-label={`Rename ${player.name}`} onClick={() => onStartRename(() => setEditing(true))}>
               <Pencil className="h-5 w-5" />
             </button>
             {played > 0 ? (

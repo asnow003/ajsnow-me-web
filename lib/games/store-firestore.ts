@@ -18,6 +18,11 @@ export function createFirestoreBackend(): Backend {
       const familyId = snap.exists() ? snap.data().familyId : null;
       return typeof familyId === 'string' ? familyId : null;
     },
+    async lookupAdminPin(adminKey) {
+      const snap = await getDoc(doc(db, 'adminPins', adminKey));
+      const familyId = snap.exists() ? snap.data().familyId : null;
+      return typeof familyId === 'string' ? familyId : null;
+    },
     family: (familyId) => familyStore(db, familyId),
   };
 }
