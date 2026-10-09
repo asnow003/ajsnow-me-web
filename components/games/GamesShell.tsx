@@ -89,8 +89,10 @@ export default function GamesShell({ children }: { children: React.ReactNode }) 
 
   const unlock = useCallback(async (pin: string) => tryKey(await derivePinKey(pin)), [tryKey]);
 
+  // Logging out forgets the family PIN and ends admin mode on this device.
   const lock = useCallback(() => {
     writeSession(null);
+    writeAdminUntil('', null);
     setState({ status: 'locked' });
   }, []);
 

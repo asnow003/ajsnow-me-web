@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { ChartColumn, Lock, Plus, Users } from 'lucide-react';
+import { ChartColumn, LogOut, Plus, Users } from 'lucide-react';
 import { useGames } from '@/components/games/GamesShell';
 import { useAllGames } from '@/components/games/hooks';
 import { Header, Page } from '@/components/games/ui';
@@ -51,8 +51,8 @@ export default function GamesHome() {
         </div>
 
         <button onClick={lock} className="mx-auto mt-10 flex items-center gap-2 text-sm text-ink/50 hover:text-ink">
-          <Lock className="h-4 w-4" aria-hidden="true" />
-          Lock this device
+          <LogOut className="h-4 w-4" aria-hidden="true" />
+          Log out
         </button>
       </Page>
     </>
