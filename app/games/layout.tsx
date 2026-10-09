@@ -16,7 +16,7 @@ export const viewport: Viewport = {
 
 export default function GamesLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className={`${fredoka.variable} min-h-dvh bg-cream text-ink`}>
+    <div className={`${fredoka.variable} min-h-svh bg-cream text-ink`}>
       <GamesShell>{children}</GamesShell>
     </div>
   );

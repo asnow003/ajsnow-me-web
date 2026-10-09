@@ -13,7 +13,7 @@ const SUITS = [
 const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', 'back'];
 
 // Four suit boxes and a keypad. Submits on the fourth digit; the physical keyboard works too.
-// Heights scale with the visible screen height (dvh) so the whole pad fits without scrolling.
+// Heights scale with the smallest visible screen height (svh) so the whole pad fits without scrolling.
 export default function PinPad({
   onSubmit,
   variant = 'dark',
@@ -65,12 +65,12 @@ export default function PinPad({
   }, [press]);
 
   return (
-    <div className="flex flex-col items-center gap-[clamp(6px,1.6dvh,16px)]">
+    <div className="flex flex-col items-center gap-[clamp(6px,1.6svh,16px)]">
       <div key={shake} className={`flex gap-3 ${shake ? 'animate-shake' : ''}`} aria-live="polite">
         {SUITS.map(({ icon: Icon, color }, i) => (
           <div
             key={i}
-            className={`grid h-[clamp(44px,8dvh,80px)] w-[clamp(36px,6dvh,56px)] place-items-center rounded-xl ${
+            className={`grid h-[clamp(44px,8svh,80px)] w-[clamp(36px,6svh,56px)] place-items-center rounded-xl ${
               i < pin.length ? (dark ? 'bg-white' : 'bg-white ring-2 ring-brand') : dark ? 'bg-brand-light/40' : 'bg-brand-pale'
             }`}
           >
@@ -87,7 +87,7 @@ export default function PinPad({
         )}
       </div>
 
-      <div className="grid grid-cols-3 gap-[clamp(8px,1.4dvh,12px)]">
+      <div className="grid grid-cols-3 gap-[clamp(8px,1.4svh,12px)]">
         {KEYS.map((key, i) =>
           key === '' ? (
             <div key={i} />
@@ -96,7 +96,7 @@ export default function PinPad({
               key={i}
               onClick={() => press(key)}
               aria-label={key === 'back' ? 'Delete digit' : key}
-              className={`grid h-[clamp(44px,8dvh,72px)] w-[72px] place-items-center rounded-2xl font-display text-2xl font-medium transition active:scale-95 ${
+              className={`grid h-[clamp(44px,8svh,72px)] w-[72px] place-items-center rounded-2xl font-display text-2xl font-medium transition active:scale-95 ${
                 dark ? 'bg-brand-dark text-white hover:bg-brand-deep' : 'bg-brand-pale text-brand-deep hover:bg-brand-light/60'
               }`}
             >

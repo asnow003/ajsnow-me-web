@@ -5,5 +5,7 @@
 @layer base {
   html, body {
     -webkit-font-smoothing: antialiased;
+    /* No rubber-band bounce on iPhone: pages that fit the screen stay put. Long pages still scroll. */
+    overscroll-behavior: none;
   }
 }
