@@ -1,9 +1,10 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect } from 'react';
+import { useContext, useEffect, useState } from 'react';
 import { ArrowLeft, Check, LoaderCircle } from 'lucide-react';
 import type { Player } from '@/lib/games/types';
+import { GamesContext } from './GamesShell';
 
 export function Header({
   title,
@@ -38,10 +39,35 @@ export function Page({ children }: { children: React.ReactNode }) {
   return <main className="mx-auto max-w-5xl px-3 pb-16 pt-4 sm:px-6 sm:pt-6">{children}</main>;
 }
 
+// A spinner that recovers: after a few seconds it resets the database connection (a connection that died
+// while the phone slept can leave a page waiting forever), and if that doesn't help it offers a reload.
 export function Loading() {
+  const reconnect = useContext(GamesContext)?.reconnect;
+  const [slow, setSlow] = useState(false);
+
+  useEffect(() => {
+    const nudge = setTimeout(() => reconnect?.(), 6_000);
+    const giveUp = setTimeout(() => setSlow(true), 12_000);
+    return () => {
+      clearTimeout(nudge);
+      clearTimeout(giveUp);
+    };
+  }, [reconnect]);
+
   return (
-    <div className="grid place-items-center py-20 text-brand">
+    <div className="grid place-items-center gap-4 py-20 text-center text-brand">
       <LoaderCircle className="h-10 w-10 animate-spin" aria-label="Loading" />
+      {slow && (
+        <div>
+          <p className="text-ink/70">This is taking longer than usual.</p>
+          <button
+            onClick={() => location.reload()}
+            className="mt-3 rounded-xl bg-brand px-5 py-2.5 font-display text-lg font-medium text-white hover:bg-brand-dark"
+          >
+            Reload
+          </button>
+        </div>
+      )}
     </div>
   );
 }

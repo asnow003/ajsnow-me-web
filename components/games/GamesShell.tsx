@@ -18,9 +18,21 @@ interface GamesContextValue {
   isAdmin: boolean;
   // Runs the action now in admin mode, otherwise asks for the admin PIN first.
   requireAdmin: (action: () => void) => void;
+  // Resets the database connection; see Backend.reconnect.
+  reconnect: () => Promise<void>;
 }
 
-const GamesContext = createContext<GamesContextValue | null>(null);
+export const GamesContext = createContext<GamesContextValue | null>(null);
+
+// The startup PIN check gives up after this long instead of spinning forever on a dead connection.
+const CHECK_TIMEOUT_MS = 12_000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error('timed out')), ms)),
+  ]);
+}
 
 export function useGames(): GamesContextValue {
   const ctx = useContext(GamesContext);
@@ -75,7 +87,7 @@ export default function GamesShell({ children }: { children: React.ReactNode }) 
       return;
     }
     setState({ status: 'checking' });
-    tryKey(saved)
+    withTimeout(tryKey(saved), CHECK_TIMEOUT_MS)
       .then((ok) => {
         if (!ok) {
           writeSession(null);
@@ -86,6 +98,12 @@ export default function GamesShell({ children }: { children: React.ReactNode }) 
   }, [tryKey]);
 
   useEffect(check, [check]);
+
+  // Retrying after a failed or timed-out check starts from a fresh connection.
+  const retry = useCallback(async () => {
+    if (BACKEND_CONFIGURED) await (await getBackend()).reconnect().catch(() => {});
+    check();
+  }, [check]);
 
   const unlock = useCallback(async (pin: string) => tryKey(await derivePinKey(pin)), [tryKey]);
 
@@ -109,7 +127,7 @@ export default function GamesShell({ children }: { children: React.ReactNode }) 
       <div className="grid min-h-svh place-items-center p-6 text-center">
         <div>
           <p className="font-display text-2xl font-medium text-ink">{state.message}</p>
-          <button onClick={check} className="mt-6 rounded-xl bg-brand px-6 py-3 font-display text-lg text-white">
+          <button onClick={retry} className="mt-6 rounded-xl bg-brand px-6 py-3 font-display text-lg text-white">
             Try again
           </button>
         </div>
@@ -201,6 +219,25 @@ function Unlocked({
     [backend, familyId],
   );
 
+  const reconnect = useCallback(() => backend.reconnect().catch(() => {}), [backend]);
+
+  // Phones drop connections while a tab sleeps, and the database client doesn't always notice. Reset it
+  // when the tab comes back after a while, or when the page is restored from the back/forward cache.
+  useEffect(() => {
+    let hiddenAt = 0;
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') hiddenAt = Date.now();
+      else if (hiddenAt && Date.now() - hiddenAt > 20_000) reconnect();
+    };
+    const onPageShow = (e: PageTransitionEvent) => e.persisted && reconnect();
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('pageshow', onPageShow);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('pageshow', onPageShow);
+    };
+  }, [reconnect]);
+
   const cancelAdmin = useCallback(() => {
     pending.current = null;
     setAsking(false);
@@ -214,7 +251,7 @@ function Unlocked({
   const left = isAdmin ? Math.ceil((adminUntil - now) / 1000) : 0;
 
   return (
-    <GamesContext.Provider value={{ store, localMode: backend.mode === 'local', lock, isAdmin, requireAdmin }}>
+    <GamesContext.Provider value={{ store, localMode: backend.mode === 'local', lock, isAdmin, requireAdmin, reconnect }}>
       {backend.mode === 'local' && (
         <div className="bg-playing-bg px-4 py-1.5 text-center text-sm text-playing-text">
           Local test mode: data is saved only in this browser.

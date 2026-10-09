@@ -1,6 +1,6 @@
 import { getApp, getApps, initializeApp } from 'firebase/app';
 import {
-  addDoc, collection, deleteDoc, doc, getDoc, initializeFirestore, onSnapshot, updateDoc,
+  addDoc, collection, deleteDoc, disableNetwork, doc, enableNetwork, getDoc, initializeFirestore, onSnapshot, updateDoc,
   type Firestore,
 } from 'firebase/firestore';
 import { firebaseConfig } from './firebase-config';
@@ -24,6 +24,10 @@ export function createFirestoreBackend(): Backend {
       return typeof familyId === 'string' ? familyId : null;
     },
     family: (familyId) => familyStore(db, familyId),
+    async reconnect() {
+      await disableNetwork(db);
+      await enableNetwork(db);
+    },
   };
 }
 

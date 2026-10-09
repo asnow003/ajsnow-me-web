@@ -23,6 +23,9 @@ export interface Backend {
   // Same for the admin PIN, which unlocks deleting, reopening, past-round edits and player management.
   lookupAdminPin(adminKey: string): Promise<string | null>;
   family(familyId: string): FamilyStore;
+  // Drops and reopens the database connection. Used when a phone wakes up or loading stalls, since a
+  // connection that died in the background can leave listeners waiting forever.
+  reconnect(): Promise<void>;
 }
 
 // Local mode keeps everything in this browser's storage. It's for development only

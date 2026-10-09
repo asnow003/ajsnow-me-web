@@ -14,6 +14,12 @@ interface Data {
 
 const listeners = new Set<() => void>();
 
+// Testing aid: with localStorage 'games.local.stall' set, listeners get nothing until reconnect() is
+// called ('1'), or never ('forever'), the way a connection that died in the background behaves.
+const STALL_KEY = 'games.local.stall';
+let stalled = typeof window !== 'undefined' && Boolean(localStorage.getItem(STALL_KEY));
+const stalledRuns = new Set<() => void>();
+
 function load(): Data {
   try {
     return JSON.parse(localStorage.getItem(KEY) ?? '') as Data;
@@ -30,7 +36,7 @@ function change(fn: (data: Data) => void) {
 }
 
 function subscribe<T>(select: (data: Data) => T, cb: (value: T) => void) {
-  const run = () => cb(select(load()));
+  const run = () => (stalled ? stalledRuns.add(run) : cb(select(load())));
   const onStorage = (e: StorageEvent) => e.key === KEY && run();
   queueMicrotask(run);
   listeners.add(run);
@@ -81,4 +87,10 @@ export const localBackend: Backend = {
     return adminKey === (await deriveAdminPinKey(LOCAL_ADMIN_PIN)) ? 'local' : null;
   },
   family: () => store,
+  async reconnect() {
+    if (localStorage.getItem(STALL_KEY) === 'forever') return;
+    stalled = false;
+    stalledRuns.forEach((run) => run());
+    stalledRuns.clear();
+  },
 };
