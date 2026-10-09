@@ -52,7 +52,6 @@ export const estimationScorer: GameScorer = {
 
 type Mode =
   | { kind: 'new'; spec: RoundSpec; index: number }
-  | { kind: 'playing'; index: number }
   | { kind: 'change-bids'; index: number }
   | { kind: 'tricks'; index: number }
   | { kind: 'edit'; index: number }
@@ -62,23 +61,24 @@ function EstimationPanel({ game, def, players, editRound, onDoneEditing, saveRou
   const seq = roundSequence(game.playerIds.length);
   const last = game.rounds[game.rounds.length - 1];
   const pending = last && isPending(last);
-  const [step, setStep] = useState<'tricks' | 'change-bids' | null>(null);
+  // After bids are locked in the round goes straight to tricks; this flags a detour to change the bids.
+  const [changingBids, setChangingBids] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (editRound !== null) ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, [editRound]);
 
-  // Leave the tricks/change-bids step once the pending round it belonged to is gone (saved or changed elsewhere).
+  // Drop the detour once the pending round it belonged to is gone (saved or changed elsewhere).
   useEffect(() => {
-    if (!pending) setStep(null);
+    if (!pending) setChangingBids(false);
   }, [pending]);
 
   const mode: Mode =
     editRound !== null && game.rounds[editRound]
       ? { kind: 'edit', index: editRound }
       : pending
-        ? { kind: step ?? 'playing', index: game.rounds.length - 1 }
+        ? { kind: changingBids ? 'change-bids' : 'tricks', index: game.rounds.length - 1 }
         : game.rounds.length >= seq.length
           ? { kind: 'done' }
           : { kind: 'new', spec: seq[game.rounds.length], index: game.rounds.length };
@@ -104,42 +104,6 @@ function EstimationPanel({ game, def, players, editRound, onDoneEditing, saveRou
         <p className="mt-2 font-display text-xl font-semibold">All {seq.length} rounds played</p>
         <p className="mt-1 text-sm text-ink/60">Finish the game to record the winner.</p>
       </div>,
-    );
-  }
-
-  if (mode.kind === 'playing') {
-    const inputs = inputsOf(last);
-    const totalBid = Object.values(inputs.bids).reduce((a, b) => a + b, 0);
-    return shell(
-      <>
-        <RoundHeading index={mode.index} total={seq.length} spec={inputs} trump={inputs.trump} />
-        <p className="mt-1 text-sm text-ink/60">
-          {players.get(game.playerIds[dealerIndex(mode.index, game.playerIds.length)])?.name} deals · {totalBid} bid on{' '}
-          {inputs.cards} {inputs.cards === 1 ? 'card' : 'cards'}
-        </p>
-        <ul className="mt-3 grid grid-cols-2 gap-2">
-          {bidOrder(game.playerIds, mode.index).map((pid) => (
-            <li key={pid} className="flex items-center gap-2 rounded-xl bg-cream px-2 py-1.5">
-              <PlayerDot player={players.get(pid)} size="sm" />
-              <span className="min-w-0 flex-1 truncate font-medium">{players.get(pid)?.name}</span>
-              <span className="font-display text-lg font-semibold">{inputs.bids[pid]}</span>
-            </li>
-          ))}
-        </ul>
-        <button
-          onClick={() => setStep('tricks')}
-          className="mt-4 flex h-14 w-full items-center justify-center rounded-2xl font-display text-xl font-semibold text-white shadow-md active:scale-[0.98]"
-          style={{ background: def.color }}
-        >
-          Enter tricks taken
-        </button>
-        {inputs.kind !== 'misere' && (
-          <button onClick={() => setStep('change-bids')} className="mx-auto mt-3 flex items-center gap-1 text-sm text-ink/60 underline hover:text-ink">
-            <Pencil className="h-4 w-4" aria-hidden="true" />
-            Change bids or trump
-          </button>
-        )}
-      </>,
     );
   }
 
@@ -189,10 +153,10 @@ function EstimationPanel({ game, def, players, editRound, onDoneEditing, saveRou
         initial={inputs}
         showBids
         saveLabel="Save bids"
-        onCancel={() => setStep(null)}
+        onCancel={() => setChangingBids(false)}
         onSave={async (next) => {
           await saveRounds(replace(mode.index, next));
-          setStep(null);
+          setChangingBids(false);
         }}
       />,
     );
@@ -210,7 +174,7 @@ function EstimationPanel({ game, def, players, editRound, onDoneEditing, saveRou
         initial={{ ...inputs, tricks: {} }}
         showTricks
         saveLabel={`Save round ${mode.index + 1}`}
-        onCancel={() => setStep(null)}
+        onChangeBids={inputs.kind === 'misere' ? undefined : () => setChangingBids(true)}
         onSave={(next) => saveCompleted(replace(mode.index, next))}
       />,
     );
@@ -264,6 +228,7 @@ function RoundEditor({
   saveLabel,
   onSave,
   onCancel,
+  onChangeBids,
 }: {
   game: Game;
   def: { color: string };
@@ -277,6 +242,7 @@ function RoundEditor({
   saveLabel: string;
   onSave: (inputs: EstimationInputs) => Promise<unknown> | void;
   onCancel?: () => void;
+  onChangeBids?: () => void;
 }) {
   const [trump, setTrump] = useState<Suit | null>(initial.trump);
   const [bids, setBids] = useState<Record<string, number>>(initial.bids);
@@ -327,7 +293,9 @@ function RoundEditor({
           ? 'Correct this round and the totals update.'
           : kind === 'misere'
             ? 'Misère: everyone bids 0. Enter the tricks each player took.'
-            : `${players.get(dealer)?.name} deals. ${showBids ? `Bidding starts with ${players.get(order[0])?.name}.` : ''}`}
+            : showBids
+              ? `${players.get(dealer)?.name} deals. Bidding starts with ${players.get(order[0])?.name}.`
+              : `${players.get(dealer)?.name} deals · ${totalBid} bid on ${cards} ${cards === 1 ? 'card' : 'cards'}. Enter the tricks each player took.`}
       </p>
 
       {needsTrump && (
@@ -423,6 +391,12 @@ function RoundEditor({
         <Check className="h-6 w-6" aria-hidden="true" />
         {saveLabel}
       </button>
+      {onChangeBids && (
+        <button onClick={onChangeBids} className="mx-auto mt-3 flex items-center gap-1 text-sm text-ink/60 underline hover:text-ink">
+          <Pencil className="h-4 w-4" aria-hidden="true" />
+          Change bids or trump
+        </button>
+      )}
       {onCancel && (
         <button onClick={onCancel} className="mx-auto mt-3 block text-sm text-ink/60 underline hover:text-ink">
           Cancel
