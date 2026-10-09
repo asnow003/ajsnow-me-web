@@ -96,7 +96,7 @@ export default function GamesShell({ children }: { children: React.ReactNode }) 
 
   if (state.status === 'checking') {
     return (
-      <div className="grid min-h-screen place-items-center text-brand">
+      <div className="grid min-h-dvh place-items-center text-brand">
         <LoaderCircle className="h-10 w-10 animate-spin" aria-label="Loading" />
       </div>
     );
@@ -104,7 +104,7 @@ export default function GamesShell({ children }: { children: React.ReactNode }) 
 
   if (state.status === 'error') {
     return (
-      <div className="grid min-h-screen place-items-center p-6 text-center">
+      <div className="grid min-h-dvh place-items-center p-6 text-center">
         <div>
           <p className="font-display text-2xl font-medium text-ink">{state.message}</p>
           <button onClick={check} className="mt-6 rounded-xl bg-brand px-6 py-3 font-display text-lg text-white">
@@ -251,14 +251,14 @@ function AdminPinDialog({ onSubmit, onCancel }: { onSubmit: (pin: string) => Pro
         role="dialog"
         aria-modal="true"
         aria-label="Admin PIN"
-        className="w-full max-w-md rounded-3xl bg-white p-6 shadow-xl"
+        className="max-h-[calc(100dvh-24px)] w-full max-w-md overflow-y-auto rounded-3xl bg-white p-[clamp(16px,3dvh,24px)] shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-1 flex items-center gap-2">
           <LockOpen className="h-6 w-6 text-brand" aria-hidden="true" />
           <h2 className="font-display text-2xl font-semibold text-ink">Admin PIN</h2>
         </div>
-        <p className="mb-5 text-ink/70">
+        <p className="mb-[clamp(8px,2dvh,20px)] text-ink/70">
           Deleting games, reopening them, editing past rounds and managing players need the admin PIN. It stays unlocked
           on this device for {ADMIN_MINUTES} minutes.
         </p>

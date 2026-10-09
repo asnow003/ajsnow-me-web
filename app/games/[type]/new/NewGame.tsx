@@ -2,11 +2,11 @@
 
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { Check, Search, UserPlus } from 'lucide-react';
+import { Search, UserPlus } from 'lucide-react';
 import { useGames } from '@/components/games/GamesShell';
 import { usePlayers } from '@/components/games/hooks';
 import { SCORERS } from '@/components/games/scorers';
-import { Header, Loading, Page, PlayerDot } from '@/components/games/ui';
+import { Header, Loading, Page, PlayerDot, ReadyButton } from '@/components/games/ui';
 import { nextPlayerColor } from '@/lib/games/colors';
 import { cleanName, findByName } from '@/lib/games/players';
 import { getGameDef } from '@/lib/games/registry';
@@ -61,10 +61,7 @@ export default function NewGame({ type }: { type: string }) {
   };
 
   const start = async () => {
-    if (seats.length < 2) {
-      setError('Pick at least 2 players.');
-      return;
-    }
+    if (seats.length < 2) return;
     setBusy(true);
     const now = Date.now();
     try {
@@ -177,16 +174,17 @@ export default function NewGame({ type }: { type: string }) {
                 <scorer.Setup settings={settings} onChange={setSettings} color={def.color} />
               </div>
             )}
+            {seats.length < 2 && (
+              <p className="mb-2 text-center text-sm font-medium text-ink/70 lg:mt-3">
+                {seats.length === 0 ? 'Pick at least 2 players' : 'Pick 1 more player'}
+              </p>
+            )}
             {error && <p className="mb-2 text-center font-medium text-danger lg:mt-3">{error}</p>}
-            <button
-              onClick={start}
-              disabled={busy}
-              className="flex h-14 w-full items-center justify-center gap-2 rounded-2xl font-display text-xl font-semibold text-white shadow-md active:scale-[0.98] lg:mt-4"
-              style={{ background: def.color }}
-            >
-              <Check className="h-6 w-6" aria-hidden="true" />
-              Deal &rsquo;em in{seats.length > 0 && ` · ${seats.length} player${seats.length === 1 ? '' : 's'}`}
-            </button>
+            <div className="lg:mt-4">
+              <ReadyButton ready={seats.length >= 2} busy={busy} onClick={start}>
+                Deal &rsquo;em in{seats.length > 0 && ` · ${seats.length} player${seats.length === 1 ? '' : 's'}`}
+              </ReadyButton>
+            </div>
           </aside>
         </div>
       </Page>

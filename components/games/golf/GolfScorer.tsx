@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Check, Minus, PartyPopper, Plus } from 'lucide-react';
+import { Minus, PartyPopper, Plus } from 'lucide-react';
 import { RulesSection } from '@/components/games/RulesCard';
-import { PlayerDot } from '@/components/games/ui';
+import { PlayerDot, ReadyButton } from '@/components/games/ui';
 import { totals } from '@/lib/games/scoring';
 import type { Game } from '@/lib/games/types';
 import type { GameScorer, ScorerPanelProps } from '../scorers';
@@ -183,15 +183,11 @@ function HoleEditor({
 
       {waiting && <p className="mt-3 text-center text-sm font-medium text-ink/70">{waiting}</p>}
       {error && <p className="mt-3 text-center font-medium text-danger">{error}</p>}
-      <button
-        onClick={save}
-        disabled={busy || waiting !== null}
-        className="mt-3 flex h-14 w-full items-center justify-center gap-2 rounded-2xl font-display text-xl font-semibold text-white shadow-md transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none disabled:active:scale-100"
-        style={{ background: color }}
-      >
-        <Check className="h-6 w-6" aria-hidden="true" />
-        {onCancel ? 'Save changes' : `Save hole ${index + 1}`}
-      </button>
+      <div className="mt-3">
+        <ReadyButton ready={waiting === null} busy={busy} onClick={save}>
+          {onCancel ? 'Save changes' : `Save hole ${index + 1}`}
+        </ReadyButton>
+      </div>
       {onCancel && (
         <button onClick={onCancel} className="mx-auto mt-3 block text-sm text-ink/60 underline hover:text-ink">
           Cancel

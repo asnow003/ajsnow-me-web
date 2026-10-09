@@ -17,6 +17,8 @@ const config: Config = {
         playing: { DEFAULT: '#EF9F27', bg: '#FAEEDA', text: '#633806' },
         done: { DEFAULT: '#1D9E75', bg: '#E1F5EE', text: '#085041' },
         danger: '#A32D2D',
+        // "Ready" action buttons. A true green kept apart from Golf's teal so it never reads as a game color.
+        go: { DEFAULT: '#2E7D32', dark: '#1B5E20' },
       },
       fontFamily: {
         display: ['var(--font-fredoka)', 'ui-rounded', 'system-ui', 'sans-serif'],

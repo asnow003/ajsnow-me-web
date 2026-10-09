@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect } from 'react';
-import { ArrowLeft, LoaderCircle } from 'lucide-react';
+import { ArrowLeft, Check, LoaderCircle } from 'lucide-react';
 import type { Player } from '@/lib/games/types';
 
 export function Header({
@@ -125,4 +125,28 @@ export function formatDate(ms: number): string {
 export function formatDateTime(ms: number): string {
   const time = new Date(ms).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
   return `${formatDate(ms)}, ${time}`;
+}
+
+// The main action on a step (save, lock in, start). Grey until everything it needs is filled in, then go-green.
+export function ReadyButton({
+  ready,
+  busy = false,
+  onClick,
+  children,
+}: {
+  ready: boolean;
+  busy?: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={!ready || busy}
+      className="flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-go font-display text-xl font-semibold text-white shadow-md transition hover:bg-go-dark active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-ink/10 disabled:text-ink/40 disabled:shadow-none disabled:active:scale-100"
+    >
+      {busy ? <LoaderCircle className="h-6 w-6 animate-spin" aria-hidden="true" /> : <Check className="h-6 w-6" aria-hidden="true" />}
+      {children}
+    </button>
+  );
 }

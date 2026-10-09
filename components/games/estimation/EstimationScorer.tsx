@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Check, PartyPopper, Pencil } from 'lucide-react';
+import { PartyPopper, Pencil } from 'lucide-react';
 import { RulesSection } from '@/components/games/RulesCard';
-import { PlayerDot } from '@/components/games/ui';
+import { PlayerDot, ReadyButton } from '@/components/games/ui';
 import {
   SUITS, bidOrder, dealerIndex, inputsOf, isPending, roundName, roundScore, roundSequence, scoresFor,
   type EstimationInputs, type RoundSpec, type Suit,
@@ -382,15 +382,11 @@ function RoundEditor({
       {waiting && <p className="mt-1 text-center text-sm font-medium text-ink/70">{waiting}</p>}
       {error && <p className="mt-2 text-center font-medium text-danger">{error}</p>}
 
-      <button
-        onClick={save}
-        disabled={busy || waiting !== null}
-        className="mt-3 flex h-14 w-full items-center justify-center gap-2 rounded-2xl font-display text-xl font-semibold text-white shadow-md transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none disabled:active:scale-100"
-        style={{ background: def.color }}
-      >
-        <Check className="h-6 w-6" aria-hidden="true" />
-        {saveLabel}
-      </button>
+      <div className="mt-3">
+        <ReadyButton ready={waiting === null} busy={busy} onClick={save}>
+          {saveLabel}
+        </ReadyButton>
+      </div>
       {onChangeBids && (
         <button onClick={onChangeBids} className="mx-auto mt-3 flex items-center gap-1 text-sm text-ink/60 underline hover:text-ink">
           <Pencil className="h-4 w-4" aria-hidden="true" />
