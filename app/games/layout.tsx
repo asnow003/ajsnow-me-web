@@ -8,6 +8,10 @@ export const metadata: Metadata = {
   title: { absolute: 'Family Card Games' },
   description: 'Scorekeeping for our family card games.',
   robots: { index: false, follow: false },
+  manifest: '/games/manifest.webmanifest',
+  icons: { apple: { url: '/games/apple-touch-icon.png', sizes: '180x180', type: 'image/png' } },
+  // "Add to Home Screen" on iPhone and iPad: open full screen, labeled with a name short enough not to be cut off.
+  appleWebApp: { capable: true, title: 'Card Games', statusBarStyle: 'default' },
 };
 
 export const viewport: Viewport = {
