@@ -3,14 +3,14 @@
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useState } from 'react';
-import { ChevronDown, Crown, Flag, Pencil, Radio, RotateCcw, Sparkles, Trophy } from 'lucide-react';
+import { ChevronDown, Flag, Pencil, Radio, RotateCcw, Sparkles, Trophy } from 'lucide-react';
 import { useGames } from '@/components/games/GamesShell';
 import { useGame, usePlayerMap } from '@/components/games/hooks';
 import { RulesCard } from '@/components/games/RulesCard';
 import { SCORERS, type GameScorer } from '@/components/games/scorers';
 import { ConfirmDialog, Header, Loading, Page, PlayerDot } from '@/components/games/ui';
 import { getGameDef, type GameDef } from '@/lib/games/registry';
-import { leaders, totals } from '@/lib/games/scoring';
+import { leaders, places, totals } from '@/lib/games/scoring';
 import type { Game, Player, Round } from '@/lib/games/types';
 
 export default function PlayGame({ type }: { type: string }) {
@@ -194,6 +194,11 @@ function Scoreboard({
 }) {
   const t = totals(game);
   const lead = new Set(leaders(game, def.winRule));
+  const place = places(game, def.winRule);
+  // Phones list players by place once there are scores (seat order breaks ties); the table keeps seat order.
+  const standings = game.playerIds
+    .map((pid, i) => ({ pid, player: seated[i], seat: i }))
+    .sort((a, b) => (place ? place[a.pid] - place[b.pid] : 0) || a.seat - b.seat);
   const [open, setOpen] = useState<string | null>(null);
   const last = game.rounds[game.rounds.length - 1];
   const live = scorer && last && !scorer.canEdit(last) ? last : null;
@@ -204,17 +209,17 @@ function Scoreboard({
     <section className="rounded-3xl bg-white p-3 shadow-sm sm:p-5">
       {/* Phone: totals first, tap a player for their rounds */}
       <ul className="flex flex-col gap-2 md:hidden">
-        {game.playerIds.map((pid, i) => (
+        {standings.map(({ pid, player }) => (
           <li key={pid} className={`rounded-2xl border-2 ${lead.has(pid) ? '' : 'border-ink/10'}`} style={lead.has(pid) ? { borderColor: def.color } : undefined}>
             <button
               onClick={() => setOpen(open === pid ? null : pid)}
               aria-expanded={open === pid}
               className="flex w-full items-center gap-3 p-3 text-left"
             >
-              <PlayerDot player={seated[i]} />
+              {place && <PlaceBadge place={place[pid]} color={def.color} />}
+              <PlayerDot player={player} />
               <span className="flex min-w-0 flex-1 items-center gap-1.5 font-display text-xl font-medium">
-                <span className="truncate">{seated[i]?.name ?? 'Unknown'}</span>
-                {lead.has(pid) && <Crown className="h-5 w-5 shrink-0" style={{ color: def.color }} aria-label="Leading" />}
+                <span className="truncate">{player?.name ?? 'Unknown'}</span>
               </span>
               {live && <span className="text-sm text-ink/60">{scorer!.cell(live, pid).detail}</span>}
               <span className="font-display text-3xl font-semibold tabular-nums">{t[pid]}</span>
@@ -304,13 +309,12 @@ function Scoreboard({
               <td className="pt-3 text-left text-sm text-ink/50">Total</td>
               {game.playerIds.map((pid) => (
                 <td key={pid} className="pt-3">
-                  <span
-                    className="inline-flex items-center gap-1 font-display text-3xl font-semibold"
-                    style={lead.has(pid) ? { color: def.color } : undefined}
-                  >
-                    {lead.has(pid) && <Crown className="h-6 w-6" aria-label="Leading" />}
-                    {t[pid]}
-                  </span>
+                  <div className="flex flex-col items-center gap-1">
+                    <span className="font-display text-3xl font-semibold" style={lead.has(pid) ? { color: def.color } : undefined}>
+                      {t[pid]}
+                    </span>
+                    {place && <PlaceBadge place={place[pid]} color={def.color} />}
+                  </div>
                 </td>
               ))}
             </tr>
@@ -383,5 +387,27 @@ function FinishDialog({
       </div>
       {error && <p className="mt-3 font-medium text-danger">{error}</p>}
     </ConfirmDialog>
+  );
+}
+
+function ordinal(n: number): string {
+  const suffix = n % 100 >= 11 && n % 100 <= 13 ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' } as Record<number, string>)[n % 10] ?? 'th';
+  return `${n}${suffix}`;
+}
+
+// A player's current place. First place is filled in the game's color.
+function PlaceBadge({ place, color }: { place: number; color: string }) {
+  const first = place === 1;
+  return (
+    <span
+      className={`inline-grid h-8 w-8 shrink-0 place-items-center rounded-full font-display text-lg font-semibold tabular-nums ${
+        first ? 'text-white shadow' : 'bg-ink/10 text-ink/70'
+      }`}
+      style={first ? { background: color } : undefined}
+      aria-label={`${ordinal(place)} place`}
+      title={`${ordinal(place)} place`}
+    >
+      {place}
+    </span>
   );
 }

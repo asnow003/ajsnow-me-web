@@ -21,3 +21,14 @@ export function leaders(game: Game, winRule: 'high' | 'low'): string[] {
   const best = winRule === 'high' ? Math.max(...values) : Math.min(...values);
   return game.playerIds.filter((id) => t[id] === best);
 }
+
+// Each player's place under the win rule (1 = winning). Tied totals share a place, so it goes 1, 1, 3.
+// Null until a round has been scored.
+export function places(game: Game, winRule: 'high' | 'low'): Record<string, number> | null {
+  if (!hasScores(game)) return null;
+  const t = totals(game);
+  const better = (a: number, b: number) => (winRule === 'high' ? a > b : a < b);
+  return Object.fromEntries(
+    game.playerIds.map((id) => [id, 1 + game.playerIds.filter((other) => better(t[other], t[id])).length]),
+  );
+}
