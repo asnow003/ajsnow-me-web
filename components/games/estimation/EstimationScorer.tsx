@@ -284,6 +284,18 @@ function RoundEditor({
   };
 
   const left = cards - totalTricks;
+  // While bidding, a running total sits at the top so everyone can see where the bids stand.
+  const bidCount = order.filter((p) => bids[p] !== undefined).length;
+  const bidStatus =
+    bidCount === 0
+      ? 'No bids yet'
+      : totalBid === cards
+        ? 'Matches the cards'
+        : totalBid < cards
+          ? `${cards - totalBid} under`
+          : `${totalBid - cards} over`;
+  // Once bids are locked in, the player left of the dealer (first to bid) leads the first trick.
+  const leader = showTricks && !showBids && !editing ? order[0] : null;
 
   return (
     <>
@@ -297,6 +309,27 @@ function RoundEditor({
               ? `${players.get(dealer)?.name} deals. Bidding starts with ${players.get(order[0])?.name}.`
               : `${players.get(dealer)?.name} deals · ${totalBid} bid on ${cards} ${cards === 1 ? 'card' : 'cards'}. Enter the tricks each player took.`}
       </p>
+
+      {showBids && (
+        <div className="sticky top-[84px] z-10 mt-3 flex items-center gap-3 rounded-2xl bg-ink px-4 py-2.5 text-white shadow-md sm:top-[104px]" aria-live="polite">
+          <span className="font-display text-3xl font-semibold tabular-nums">{totalBid}</span>
+          <span className="flex-1 leading-tight text-white/80">
+            bid on {cards} {cards === 1 ? 'card' : 'cards'}
+            <span className="block text-xs text-white/60">
+              {bidCount} of {order.length} in
+            </span>
+          </span>
+          <span className="rounded-full bg-white/15 px-3 py-1 text-sm font-medium">{bidStatus}</span>
+        </div>
+      )}
+
+      {leader && (
+        <div className="mt-3 flex items-center gap-3 rounded-2xl p-3 text-white shadow-md" style={{ background: def.color }}>
+          <PlayerDot player={players.get(leader)} />
+          <span className="min-w-0 flex-1 truncate font-display text-xl font-semibold">{players.get(leader)?.name} leads</span>
+          <span className="shrink-0 text-sm text-white/85">first trick</span>
+        </div>
+      )}
 
       {needsTrump && (
         <div className="mt-4">
@@ -333,6 +366,11 @@ function RoundEditor({
               <div className="mb-2 flex items-center gap-2">
                 <PlayerDot player={players.get(pid)} size="sm" />
                 <span className="min-w-0 flex-1 truncate font-display text-lg font-medium">{players.get(pid)?.name}</span>
+                {pid === leader && (
+                  <span className="rounded-full px-2 py-0.5 text-xs font-medium text-white" style={{ background: def.color }}>
+                    Leads
+                  </span>
+                )}
                 {pid === dealer && <span className="rounded-full bg-playing-bg px-2 py-0.5 text-xs font-medium text-playing-text">Dealer</span>}
                 {showTricks && !showBids && <span className="text-sm text-ink/60">bid {bid}</span>}
                 {points !== null && (
@@ -370,16 +408,16 @@ function RoundEditor({
         })}
       </ul>
 
-      <p className={`mt-3 text-center text-sm ${showTricks && left < 0 ? 'font-medium text-danger' : 'text-ink/60'}`}>
-        {showTricks
-          ? left === 0
+      {showTricks && (
+        <p className={`mt-3 text-center text-sm ${left < 0 ? 'font-medium text-danger' : 'text-ink/60'}`}>
+          {left === 0
             ? `All ${cards} tricks counted`
             : left > 0
               ? `${totalTricks} of ${cards} tricks counted`
-              : `${-left} too many tricks counted`
-          : `Bids so far: ${totalBid} for ${cards} ${cards === 1 ? 'card' : 'cards'}`}
-      </p>
-      {waiting && <p className="mt-1 text-center text-sm font-medium text-ink/70">{waiting}</p>}
+              : `${-left} too many tricks counted`}
+        </p>
+      )}
+      {waiting && <p className={`${showTricks ? 'mt-1' : 'mt-3'} text-center text-sm font-medium text-ink/70`}>{waiting}</p>}
       {error && <p className="mt-2 text-center font-medium text-danger">{error}</p>}
 
       <div className="mt-3">
@@ -450,8 +488,9 @@ function EstimationRules() {
       </RulesSection>
       <RulesSection title="Bidding">
         <p>
-          The dealer turns up trump, then bidding starts left of the dealer and ends with the dealer. In the Misère
-          round everyone bids 0, and there&apos;s no trump in No Trump or Misère.
+          The dealer turns up trump, then bidding starts left of the dealer and ends with the dealer. The player left
+          of the dealer also leads the first trick. In the Misère round everyone bids 0, and there&apos;s no trump in
+          No Trump or Misère.
         </p>
       </RulesSection>
       <RulesSection title="Scoring">
