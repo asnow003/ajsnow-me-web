@@ -8,6 +8,11 @@ export interface Player {
   photoUrl?: string | null;
   // False when the player chose to show their initial instead of their photo.
   usePhoto?: boolean;
+  // The signed-in account linked to this player (one account per player), and its email for admins.
+  linkedUid?: string | null;
+  linkedEmail?: string | null;
+  // When an admin last unlinked an account, so that account's old link isn't quietly reclaimed.
+  unlinkedAt?: number | null;
   hidden: boolean;
   createdAt: number;
 }

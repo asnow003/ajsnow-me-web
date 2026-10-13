@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
-import { Eye, EyeOff, Lock, Pencil, Trash2, Trophy, UserPlus } from 'lucide-react';
+import { Eye, EyeOff, Link2, Lock, Pencil, Trash2, Trophy, UserPlus } from 'lucide-react';
 import { useGames } from '@/components/games/GamesShell';
 import ProfileEditor from '@/components/games/ProfileEditor';
 import { useAllGames, usePlayers } from '@/components/games/hooks';
@@ -126,6 +126,7 @@ export default function PlayersPage() {
           player={players.find((p) => p.id === editing.id) ?? editing}
           players={players}
           isSelf={account?.playerId === editing.id}
+          canUnlink={isAdmin}
           onSave={(patch) => store.updatePlayer(editing.id, patch)}
           onClose={() => setEditing(null)}
         />
@@ -183,6 +184,12 @@ function PlayerRow({
             <Trophy className="h-4 w-4 text-playing" aria-hidden="true" />
             {wins} {wins === 1 ? 'win' : 'wins'} · {played} {played === 1 ? 'game' : 'games'}
           </div>
+          {player.linkedUid && (
+            <div className="flex items-center gap-1 text-xs text-ink/50">
+              <Link2 className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              <span className="truncate">Linked · {player.linkedEmail ?? 'account'}</span>
+            </div>
+          )}
         </Link>
         <button className={`${iconButton} relative`} aria-label={isSelf ? 'Edit your profile' : `Edit ${player.name}`} onClick={onEdit}>
           <Pencil className="h-5 w-5" />

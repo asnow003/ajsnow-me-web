@@ -10,3 +10,8 @@ export function findByName(players: Player[], name: string): Player | undefined 
   const key = cleanName(name).toLowerCase();
   return players.find((p) => p.name.toLowerCase() === key);
 }
+
+// Players linked to a different account can't be picked when linking (one account per player).
+export function linkedToSomeoneElse(player: Player, uid: string): boolean {
+  return Boolean(player.linkedUid) && player.linkedUid !== uid;
+}

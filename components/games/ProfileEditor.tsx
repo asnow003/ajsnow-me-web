@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Check, ImageIcon, X } from 'lucide-react';
+import { Check, ImageIcon, Link2, X } from 'lucide-react';
 import { PLAYER_COLORS } from '@/lib/games/colors';
 import { cleanName, findByName, MAX_NAME_LENGTH } from '@/lib/games/players';
 import type { NewPlayer, Player } from '@/lib/games/types';
@@ -13,15 +13,19 @@ export default function ProfileEditor({
   player,
   players,
   isSelf,
+  canUnlink,
   onSave,
   onClose,
 }: {
   player: Player;
   players: Player[];
   isSelf: boolean;
+  // Admins can unlink the player's account, freeing the player and making that account pick again.
+  canUnlink: boolean;
   onSave: (patch: Partial<NewPlayer>) => Promise<void>;
   onClose: () => void;
 }) {
+  const [confirmUnlink, setConfirmUnlink] = useState(false);
   const [name, setName] = useState(player.name);
   const [color, setColor] = useState(player.color);
   const [usePhoto, setUsePhoto] = useState(player.usePhoto !== false);
@@ -138,6 +142,53 @@ export default function ProfileEditor({
               There&apos;s no photo for this account. Sign in with Google to use your Google photo.
             </p>
           )
+        )}
+
+        {player.linkedUid && (
+          <div className="mt-5 rounded-2xl bg-cream p-3">
+            <p className="flex items-center gap-2 font-medium text-ink">
+              <Link2 className="h-4 w-4 text-ink/50" aria-hidden="true" />
+              Signed-in account
+            </p>
+            <p className="mt-0.5 break-all text-sm text-ink/70">Linked to {player.linkedEmail ?? 'an account'}</p>
+            {canUnlink &&
+              (confirmUnlink ? (
+                <div className="mt-3">
+                  <p className="text-sm text-ink/70">
+                    {isSelf ? 'You' : player.name} will be asked to pick a player again next time {isSelf ? 'you open' : 'they open'} the
+                    site. {isSelf ? 'Your' : 'Their'} games and stats stay.
+                  </p>
+                  <div className="mt-2 flex gap-2">
+                    <button
+                      onClick={() => setConfirmUnlink(false)}
+                      className="h-10 flex-1 rounded-xl border-2 border-ink/15 font-medium text-ink hover:bg-ink/5"
+                    >
+                      Keep
+                    </button>
+                    <button
+                      onClick={async () => {
+                        try {
+                          await onSave({ linkedUid: null, linkedEmail: null, unlinkedAt: Date.now() });
+                          onClose();
+                        } catch {
+                          setError("Couldn't unlink. Check your connection and try again.");
+                        }
+                      }}
+                      className="h-10 flex-1 rounded-xl bg-danger font-medium text-white"
+                    >
+                      Unlink
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setConfirmUnlink(true)}
+                  className="mt-2 text-sm font-medium text-danger underline hover:no-underline"
+                >
+                  Unlink account
+                </button>
+              ))}
+          </div>
         )}
 
         {error && <p className="mt-4 font-medium text-danger">{error}</p>}

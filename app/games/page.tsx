@@ -95,6 +95,7 @@ export default function GamesHome() {
           player={me}
           players={playerList}
           isSelf
+          canUnlink={false}
           onSave={(patch) => store.updatePlayer(me.id, patch)}
           onClose={() => setEditingSelf(false)}
         />

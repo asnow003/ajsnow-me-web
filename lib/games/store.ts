@@ -1,6 +1,30 @@
 import { firebaseConfig } from './firebase-config';
 import type { Game, NewGame, NewPlayer, Player } from './types';
 
+// The current player list, read once.
+export function loadPlayersOnce(store: FamilyStore): Promise<Player[]> {
+  return new Promise((resolve, reject) => {
+    let done = false;
+    let off: Unsubscribe | undefined;
+    const finish = () => {
+      done = true;
+      queueMicrotask(() => off?.());
+    };
+    off = store.subscribePlayers(
+      (players) => {
+        if (done) return;
+        finish();
+        resolve(players);
+      },
+      (error) => {
+        if (done) return;
+        finish();
+        reject(error);
+      },
+    );
+  });
+}
+
 export type Unsubscribe = () => void;
 export type OnError = (error: Error) => void;
 

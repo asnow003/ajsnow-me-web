@@ -3,7 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { LoaderCircle, LockOpen, ShieldCheck } from 'lucide-react';
 import { deriveAdminPinKey, derivePinKey } from '@/lib/games/pin';
-import { BACKEND_CONFIGURED, getBackend, type AuthUser, type Backend, type FamilyStore } from '@/lib/games/store';
+import { BACKEND_CONFIGURED, getBackend, loadPlayersOnce, type AuthUser, type Backend, type FamilyStore } from '@/lib/games/store';
 import LinkAccountScreen from './LinkAccountScreen';
 import PinPad from './PinPad';
 import PinScreen from './PinScreen';
@@ -27,6 +27,7 @@ interface GamesContextValue {
 }
 
 export interface Account {
+  uid: string;
   email: string | null;
   playerId: string;
   photoUrl: string | null;
@@ -54,7 +55,9 @@ type State =
   | { status: 'checking' }
   | { status: 'locked' }
   | { status: 'sign-in'; backend: Backend }
-  | { status: 'link'; backend: Backend; user: AuthUser }
+  // notice explains why an already-linked account is picking its player again. It re-enters the family PIN,
+  // so changing the PIN keeps out any account an admin has unlinked.
+  | { status: 'link'; backend: Backend; user: AuthUser; notice?: string }
   | { status: 'unlocked'; backend: Backend; familyId: string; account: Account | null }
   | { status: 'error'; message: string };
 
@@ -108,16 +111,29 @@ export default function GamesShell({ children }: { children: React.ReactNode }) 
     const user = await firstAuthState(backend);
     if (user) {
       const member = await backend.getMember(user.uid);
-      if (member) {
-        setState({
-          status: 'unlocked',
-          backend,
-          familyId: member.familyId,
-          account: { email: user.email, playerId: member.playerId, photoUrl: user.photoUrl },
-        });
-      } else {
+      if (!member) {
         setState({ status: 'link', backend, user });
+        return;
       }
+      // The player records which account it's linked to. Links made before that existed are claimed now,
+      // unless an admin has unlinked the player since this account linked.
+      const store = backend.family(member.familyId);
+      const me = (await loadPlayersOnce(store)).find((p) => p.id === member.playerId);
+      const stillMine =
+        me && (me.linkedUid === user.uid || (!me.linkedUid && member.linkedAt > (me.unlinkedAt ?? 0)));
+      if (!stillMine) {
+        setState({ status: 'link', backend, user, notice: relinkNotice(Boolean(me)) });
+        return;
+      }
+      if (me.linkedUid !== user.uid || me.linkedEmail !== user.email) {
+        await store.updatePlayer(me.id, { linkedUid: user.uid, linkedEmail: user.email });
+      }
+      setState({
+        status: 'unlocked',
+        backend,
+        familyId: member.familyId,
+        account: { uid: user.uid, email: user.email, playerId: member.playerId, photoUrl: user.photoUrl },
+      });
       return;
     }
     const saved = readSession();
@@ -192,19 +208,40 @@ export default function GamesShell({ children }: { children: React.ReactNode }) 
       <LinkAccountScreen
         backend={backend}
         user={user}
+        notice={state.notice}
         onLinked={(familyId, playerId) =>
-          setState({ status: 'unlocked', backend, familyId, account: { email: user.email, playerId, photoUrl: user.photoUrl } })
+          setState({
+            status: 'unlocked',
+            backend,
+            familyId,
+            account: { uid: user.uid, email: user.email, playerId, photoUrl: user.photoUrl },
+          })
         }
         onCancel={lock}
       />
     );
   }
 
+  const { backend, familyId, account } = state;
   return (
-    <Unlocked backend={state.backend} familyId={state.familyId} account={state.account} lock={lock}>
+    <Unlocked
+      backend={backend}
+      familyId={familyId}
+      account={account}
+      lock={lock}
+      onLinkLost={(notice) => {
+        firstAuthState(backend).then((user) => user && setState({ status: 'link', backend, user, notice }));
+      }}
+    >
       {children}
     </Unlocked>
   );
+}
+
+function relinkNotice(playerStillExists: boolean): string {
+  return playerStillExists
+    ? 'Your account was unlinked from its player. Enter the family PIN and pick which player you are.'
+    : "The player your account was linked to isn't on the list anymore. Enter the family PIN and pick which player you are.";
 }
 
 function readAdminUntil(familyId: string): number | null {
@@ -231,33 +268,40 @@ function Unlocked({
   familyId,
   account,
   lock,
+  onLinkLost,
   children,
 }: {
   backend: Backend;
   familyId: string;
   account: Account | null;
   lock: () => void;
+  // Called if an admin unlinks this account or deletes its player while the site is open.
+  onLinkLost: (notice: string) => void;
   children: React.ReactNode;
 }) {
   const [store] = useState(() => backend.family(familyId));
 
-  // Keep the signed-in player's photo in step with their Google account (it may have changed since linking).
+  // Watch the signed-in player: keep their photo in step with their Google account, and send them back to
+  // pick a player if their link is removed.
   useEffect(() => {
-    const photoUrl = account?.photoUrl;
-    if (!account || !photoUrl) return;
-    let off: (() => void) | undefined;
-    let done = false;
-    off = store.subscribePlayers(
+    if (!account) return;
+    let photoChecked = false;
+    return store.subscribePlayers(
       (players) => {
-        if (done) return;
-        done = true;
-        queueMicrotask(() => off?.());
         const me = players.find((p) => p.id === account.playerId);
-        if (me && me.photoUrl !== photoUrl) store.updatePlayer(me.id, { photoUrl }).catch(() => {});
+        if (!me || me.linkedUid !== account.uid) {
+          onLinkLost(relinkNotice(Boolean(me)));
+          return;
+        }
+        if (!photoChecked && account.photoUrl && me.photoUrl !== account.photoUrl) {
+          store.updatePlayer(me.id, { photoUrl: account.photoUrl }).catch(() => {});
+        }
+        photoChecked = true;
       },
       () => {},
     );
-    return () => off?.();
+    // onLinkLost changes every render of the parent; the account and store are what matter here.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [account, store]);
   const [adminUntil, setAdminUntil] = useState(() => readAdminUntil(familyId));
   const [now, setNow] = useState(() => Date.now());
