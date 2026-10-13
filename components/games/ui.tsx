@@ -72,15 +72,29 @@ export function Loading() {
   );
 }
 
+// A player's photo (from a linked Google account) or, failing that, their initial on their color.
 export function PlayerDot({ player, size = 'md' }: { player?: Player; size?: 'sm' | 'md' | 'lg' }) {
   const sizes = { sm: 'h-7 w-7 text-sm', md: 'h-9 w-9 text-base', lg: 'h-11 w-11 text-lg' };
+  const [broken, setBroken] = useState<string | null>(null);
+  const photo = player?.photoUrl && player.photoUrl !== broken ? player.photoUrl : null;
   return (
     <span
-      className={`inline-grid shrink-0 place-items-center rounded-full font-display font-semibold text-white ring-2 ring-white ${sizes[size]}`}
+      className={`inline-grid shrink-0 place-items-center overflow-hidden rounded-full font-display font-semibold text-white ring-2 ring-white ${sizes[size]}`}
       style={{ background: player?.color ?? '#888780' }}
       aria-hidden="true"
     >
-      {player?.name.charAt(0).toUpperCase() ?? '?'}
+      {photo ? (
+        // eslint-disable-next-line @next/next/no-img-element -- remote profile photo on a static site
+        <img
+          src={photo}
+          alt=""
+          referrerPolicy="no-referrer"
+          className="h-full w-full object-cover"
+          onError={() => setBroken(photo)}
+        />
+      ) : (
+        (player?.name.charAt(0).toUpperCase() ?? '?')
+      )}
     </span>
   );
 }

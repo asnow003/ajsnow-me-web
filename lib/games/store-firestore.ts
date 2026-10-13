@@ -83,7 +83,9 @@ function authApi(auth: Auth): AuthApi {
 
   return {
     onChange: (cb) =>
-      onAuthStateChanged(auth, (u) => cb(u && { uid: u.uid, email: u.email, displayName: u.displayName })),
+      onAuthStateChanged(auth, (u) =>
+        cb(u && { uid: u.uid, email: u.email, displayName: u.displayName, photoUrl: largerGooglePhoto(u.photoURL) }),
+      ),
     async signInWithGoogle() {
       if (isHomeScreenApp()) await signInWithRedirect(auth, google);
       else await signInWithPopup(auth, google);
@@ -93,4 +95,9 @@ function authApi(auth: Auth): AuthApi {
     resetPassword: (email) => sendPasswordResetEmail(auth, email),
     signOut: () => signOut(auth),
   };
+}
+
+// Google profile photo links default to 96px; ask for 200px so they stay sharp on large screens.
+function largerGooglePhoto(url: string | null): string | null {
+  return url ? url.replace(/=s\d+-c$/, '=s200-c') : null;
 }

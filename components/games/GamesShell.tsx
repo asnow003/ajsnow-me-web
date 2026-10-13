@@ -29,6 +29,7 @@ interface GamesContextValue {
 export interface Account {
   email: string | null;
   playerId: string;
+  photoUrl: string | null;
 }
 
 export const GamesContext = createContext<GamesContextValue | null>(null);
@@ -108,7 +109,12 @@ export default function GamesShell({ children }: { children: React.ReactNode }) 
     if (user) {
       const member = await backend.getMember(user.uid);
       if (member) {
-        setState({ status: 'unlocked', backend, familyId: member.familyId, account: { email: user.email, playerId: member.playerId } });
+        setState({
+          status: 'unlocked',
+          backend,
+          familyId: member.familyId,
+          account: { email: user.email, playerId: member.playerId, photoUrl: user.photoUrl },
+        });
       } else {
         setState({ status: 'link', backend, user });
       }
@@ -187,7 +193,7 @@ export default function GamesShell({ children }: { children: React.ReactNode }) 
         backend={backend}
         user={user}
         onLinked={(familyId, playerId) =>
-          setState({ status: 'unlocked', backend, familyId, account: { email: user.email, playerId } })
+          setState({ status: 'unlocked', backend, familyId, account: { email: user.email, playerId, photoUrl: user.photoUrl } })
         }
         onCancel={lock}
       />
@@ -234,6 +240,25 @@ function Unlocked({
   children: React.ReactNode;
 }) {
   const [store] = useState(() => backend.family(familyId));
+
+  // Keep the signed-in player's photo in step with their Google account (it may have changed since linking).
+  useEffect(() => {
+    const photoUrl = account?.photoUrl;
+    if (!account || !photoUrl) return;
+    let off: (() => void) | undefined;
+    let done = false;
+    off = store.subscribePlayers(
+      (players) => {
+        if (done) return;
+        done = true;
+        queueMicrotask(() => off?.());
+        const me = players.find((p) => p.id === account.playerId);
+        if (me && me.photoUrl !== photoUrl) store.updatePlayer(me.id, { photoUrl }).catch(() => {});
+      },
+      () => {},
+    );
+    return () => off?.();
+  }, [account, store]);
   const [adminUntil, setAdminUntil] = useState(() => readAdminUntil(familyId));
   const [now, setNow] = useState(() => Date.now());
   const [asking, setAsking] = useState(false);

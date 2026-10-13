@@ -83,6 +83,12 @@ const ACCOUNTS_KEY = 'games.local.accounts';
 const AUTH_KEY = 'games.local.auth';
 const MEMBERS_KEY = 'games.local.members';
 const authListeners = new Set<(user: AuthUser | null) => void>();
+// Stand-in profile photo for the fake Google account, inline so local mode needs no network.
+const TEST_PHOTO =
+  'data:image/svg+xml,' +
+  encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><rect width="40" height="40" fill="#F5C4B3"/><circle cx="20" cy="16" r="7" fill="#712B13"/><rect x="8" y="26" width="24" height="16" rx="8" fill="#712B13"/></svg>',
+  );
 
 function readJson<T>(key: string, fallback: T): T {
   try {
@@ -109,12 +115,12 @@ const localAuth: AuthApi = {
     return () => void authListeners.delete(cb);
   },
   async signInWithGoogle() {
-    setCurrentUser({ uid: 'local-google', email: 'tester@gmail.com', displayName: 'Google Tester' });
+    setCurrentUser({ uid: 'local-google', email: 'tester@gmail.com', displayName: 'Google Tester', photoUrl: TEST_PHOTO });
   },
   async signInWithEmail(email, password) {
     const account = readJson<Record<string, { password: string; uid: string }>>(ACCOUNTS_KEY, {})[email.toLowerCase()];
     if (!account || account.password !== password) authFail('auth/invalid-credential');
-    setCurrentUser({ uid: account.uid, email, displayName: null });
+    setCurrentUser({ uid: account.uid, email, displayName: null, photoUrl: null });
   },
   async createAccount(email, password) {
     if (!/^\S+@\S+\.\S+$/.test(email)) authFail('auth/invalid-email');
@@ -124,7 +130,7 @@ const localAuth: AuthApi = {
     const uid = `local-${crypto.randomUUID()}`;
     accounts[email.toLowerCase()] = { password, uid };
     localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(accounts));
-    setCurrentUser({ uid, email, displayName: null });
+    setCurrentUser({ uid, email, displayName: null, photoUrl: null });
   },
   async resetPassword(email) {
     if (!/^\S+@\S+\.\S+$/.test(email)) authFail('auth/invalid-email');

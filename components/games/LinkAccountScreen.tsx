@@ -56,8 +56,15 @@ export default function LinkAccountScreen({
       const store = backend.family(familyId);
       const playerId =
         picked === 'new'
-          ? await store.addPlayer({ name, color: nextPlayerColor(players.length), hidden: false, createdAt: Date.now() })
+          ? await store.addPlayer({
+              name,
+              color: nextPlayerColor(players.length),
+              photoUrl: user.photoUrl,
+              hidden: false,
+              createdAt: Date.now(),
+            })
           : picked!;
+      if (picked !== 'new' && user.photoUrl) await store.updatePlayer(playerId, { photoUrl: user.photoUrl });
       await backend.setMember(user.uid, { familyId, playerId, linkedAt: Date.now() });
       onLinked(familyId, playerId);
     } catch {

@@ -21,6 +21,7 @@ export interface AuthUser {
   uid: string;
   email: string | null;
   displayName: string | null;
+  photoUrl: string | null;
 }
 
 // Which family and player an account belongs to. Written once, when the account is linked with the family PIN.

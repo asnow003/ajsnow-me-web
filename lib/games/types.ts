@@ -4,6 +4,8 @@ export interface Player {
   id: string;
   name: string;
   color: string;
+  // Profile photo from the player's linked Google account. Players without one show their initial.
+  photoUrl?: string | null;
   hidden: boolean;
   createdAt: number;
 }
