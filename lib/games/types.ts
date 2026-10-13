@@ -6,6 +6,8 @@ export interface Player {
   color: string;
   // Profile photo from the player's linked Google account. Players without one show their initial.
   photoUrl?: string | null;
+  // False when the player chose to show their initial instead of their photo.
+  usePhoto?: boolean;
   hidden: boolean;
   createdAt: number;
 }

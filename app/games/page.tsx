@@ -1,16 +1,20 @@
 'use client';
 
 import Link from 'next/link';
-import { ChartColumn, LogOut, Plus, Users } from 'lucide-react';
+import { useState } from 'react';
+import { ChartColumn, LogOut, Pencil, Plus, Users } from 'lucide-react';
 import { useGames } from '@/components/games/GamesShell';
-import { useAllGames, usePlayerMap } from '@/components/games/hooks';
+import { useAllGames, usePlayerMap, usePlayers } from '@/components/games/hooks';
+import ProfileEditor from '@/components/games/ProfileEditor';
 import { Header, Page, PlayerDot } from '@/components/games/ui';
 import { GAMES } from '@/lib/games/registry';
 
 export default function GamesHome() {
-  const { lock, account } = useGames();
+  const { lock, account, store } = useGames();
   const games = useAllGames();
   const players = usePlayerMap();
+  const playerList = usePlayers();
+  const [editingSelf, setEditingSelf] = useState(false);
   const me = account ? players?.get(account.playerId) : undefined;
 
   return (
@@ -34,6 +38,16 @@ export default function GamesHome() {
               </div>
               {account.email && me && <div className="truncate text-sm text-ink/50">{account.email}</div>}
             </div>
+            {me && (
+              <button
+                onClick={() => setEditingSelf(true)}
+                aria-label="Edit your profile"
+                className="flex shrink-0 items-center gap-1.5 rounded-full border-2 border-ink/10 px-3 py-1.5 font-display font-medium text-ink/70 hover:bg-ink/5"
+              >
+                <Pencil className="h-4 w-4" aria-hidden="true" />
+                <span className="hidden min-[400px]:inline">Edit</span>
+              </button>
+            )}
             {me && (
               <Link
                 href={`/games/player?id=${me.id}`}
@@ -76,6 +90,15 @@ export default function GamesHome() {
           Log out
         </button>
       </Page>
+      {editingSelf && me && playerList && (
+        <ProfileEditor
+          player={me}
+          players={playerList}
+          isSelf
+          onSave={(patch) => store.updatePlayer(me.id, patch)}
+          onClose={() => setEditingSelf(false)}
+        />
+      )}
     </>
   );
 }

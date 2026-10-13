@@ -2,8 +2,9 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
-import { Check, Eye, EyeOff, Pencil, Trash2, Trophy, UserPlus, X } from 'lucide-react';
+import { Eye, EyeOff, Lock, Pencil, Trash2, Trophy, UserPlus } from 'lucide-react';
 import { useGames } from '@/components/games/GamesShell';
+import ProfileEditor from '@/components/games/ProfileEditor';
 import { useAllGames, usePlayers } from '@/components/games/hooks';
 import { ConfirmDialog, Header, Loading, Page, PlayerDot } from '@/components/games/ui';
 import { nextPlayerColor } from '@/lib/games/colors';
@@ -11,12 +12,13 @@ import { cleanName, findByName, MAX_NAME_LENGTH } from '@/lib/games/players';
 import type { Player } from '@/lib/games/types';
 
 export default function PlayersPage() {
-  const { store, requireAdmin } = useGames();
+  const { store, requireAdmin, isAdmin, account } = useGames();
   const players = usePlayers();
   const games = useAllGames();
   const [newName, setNewName] = useState('');
   const [addError, setAddError] = useState('');
   const [deleting, setDeleting] = useState<Player | null>(null);
+  const [editing, setEditing] = useState<Player | null>(null);
 
   if (!players || !games) {
     return (
@@ -80,12 +82,12 @@ export default function PlayersPage() {
               <PlayerRow
                 key={p.id}
                 player={p}
-                players={players}
                 {...stats(p.id)}
-                onRename={(name) => store.updatePlayer(p.id, { name })}
+                isSelf={account?.playerId === p.id}
+                locked={account?.playerId !== p.id && !isAdmin}
+                onEdit={() => (account?.playerId === p.id ? setEditing(p) : requireAdmin(() => setEditing(p)))}
                 onHide={() => requireAdmin(() => store.updatePlayer(p.id, { hidden: true }))}
                 onDelete={() => requireAdmin(() => setDeleting(p))}
-                onStartRename={(start) => requireAdmin(start)}
               />
             ))}
             {visible.length === 0 && (
@@ -119,6 +121,16 @@ export default function PlayersPage() {
         </div>
       </Page>
 
+      {editing && (
+        <ProfileEditor
+          player={players.find((p) => p.id === editing.id) ?? editing}
+          players={players}
+          isSelf={account?.playerId === editing.id}
+          onSave={(patch) => store.updatePlayer(editing.id, patch)}
+          onClose={() => setEditing(null)}
+        />
+      )}
+
       {deleting && (
         <ConfirmDialog
           title={`Delete ${deleting.name}?`}
@@ -138,102 +150,54 @@ export default function PlayersPage() {
 
 function PlayerRow({
   player,
-  players,
   played,
   wins,
-  onRename,
+  isSelf,
+  locked,
+  onEdit,
   onHide,
   onDelete,
-  onStartRename,
 }: {
   player: Player;
-  players: Player[];
   played: number;
   wins: number;
-  onRename: (name: string) => void;
+  isSelf: boolean;
+  // Editing someone else needs the admin PIN; shows a lock until admin mode is on.
+  locked: boolean;
+  onEdit: () => void;
   onHide: () => void;
   onDelete: () => void;
-  onStartRename: (start: () => void) => void;
 }) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(player.name);
-  const [error, setError] = useState('');
-
-  const save = () => {
-    const name = cleanName(draft);
-    if (!name) return setError('Enter a name.');
-    const clash = findByName(players, name);
-    if (clash && clash.id !== player.id) return setError(`${clash.name} is already taken.`);
-    onRename(name);
-    setEditing(false);
-  };
-
   const iconButton = 'grid h-11 w-11 shrink-0 place-items-center rounded-xl text-ink/50 hover:bg-ink/5 hover:text-ink';
 
   return (
     <li className="rounded-2xl bg-white p-3 shadow-sm">
       <div className="flex items-center gap-3">
         <PlayerDot player={player} size="lg" />
-        {editing ? (
-          <form
-            className="flex min-w-0 flex-1 items-center gap-1"
-            onSubmit={(e) => {
-              e.preventDefault();
-              save();
-            }}
-          >
-            <input
-              autoFocus
-              value={draft}
-              onChange={(e) => {
-                setDraft(e.target.value);
-                setError('');
-              }}
-              maxLength={MAX_NAME_LENGTH}
-              aria-label="Player name"
-              className="h-11 min-w-0 flex-1 rounded-xl border-2 border-brand bg-white px-3 text-lg outline-none"
-            />
-            <button className={iconButton} aria-label="Save name">
-              <Check className="h-5 w-5" />
-            </button>
-            <button
-              type="button"
-              className={iconButton}
-              aria-label="Cancel"
-              onClick={() => {
-                setEditing(false);
-                setDraft(player.name);
-                setError('');
-              }}
-            >
-              <X className="h-5 w-5" />
-            </button>
-          </form>
+        <Link href={`/games/player?id=${player.id}&from=players`} className="min-w-0 flex-1 rounded-lg hover:opacity-80">
+          <div className="truncate font-display text-xl font-medium">
+            {player.name}
+            {isSelf && <span className="ml-1.5 text-base font-normal text-ink/50">(you)</span>}
+          </div>
+          <div className="flex items-center gap-1 text-sm text-ink/60">
+            <Trophy className="h-4 w-4 text-playing" aria-hidden="true" />
+            {wins} {wins === 1 ? 'win' : 'wins'} · {played} {played === 1 ? 'game' : 'games'}
+          </div>
+        </Link>
+        <button className={`${iconButton} relative`} aria-label={isSelf ? 'Edit your profile' : `Edit ${player.name}`} onClick={onEdit}>
+          <Pencil className="h-5 w-5" />
+          {locked && <Lock className="absolute bottom-1.5 right-1.5 h-3 w-3 text-ink/40" aria-hidden="true" />}
+        </button>
+        {played > 0 ? (
+          <button className={iconButton} aria-label={`Hide ${player.name}`} onClick={onHide}>
+            <EyeOff className="h-5 w-5" />
+          </button>
         ) : (
-          <>
-            <Link href={`/games/player?id=${player.id}&from=players`} className="min-w-0 flex-1 rounded-lg hover:opacity-80">
-              <div className="truncate font-display text-xl font-medium">{player.name}</div>
-              <div className="flex items-center gap-1 text-sm text-ink/60">
-                <Trophy className="h-4 w-4 text-playing" aria-hidden="true" />
-                {wins} {wins === 1 ? 'win' : 'wins'} · {played} {played === 1 ? 'game' : 'games'}
-              </div>
-            </Link>
-            <button className={iconButton} aria-label={`Rename ${player.name}`} onClick={() => onStartRename(() => setEditing(true))}>
-              <Pencil className="h-5 w-5" />
-            </button>
-            {played > 0 ? (
-              <button className={iconButton} aria-label={`Hide ${player.name}`} onClick={onHide}>
-                <EyeOff className="h-5 w-5" />
-              </button>
-            ) : (
-              <button className={iconButton} aria-label={`Delete ${player.name}`} onClick={onDelete}>
-                <Trash2 className="h-5 w-5" />
-              </button>
-            )}
-          </>
+          <button className={iconButton} aria-label={`Delete ${player.name}`} onClick={onDelete}>
+            <Trash2 className="h-5 w-5" />
+          </button>
         )}
       </div>
-      {error && <p className="mt-2 pl-14 font-medium text-danger">{error}</p>}
     </li>
   );
 }

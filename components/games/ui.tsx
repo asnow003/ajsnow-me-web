@@ -73,10 +73,10 @@ export function Loading() {
 }
 
 // A player's photo (from a linked Google account) or, failing that, their initial on their color.
-export function PlayerDot({ player, size = 'md' }: { player?: Player; size?: 'sm' | 'md' | 'lg' }) {
-  const sizes = { sm: 'h-7 w-7 text-sm', md: 'h-9 w-9 text-base', lg: 'h-11 w-11 text-lg' };
+export function PlayerDot({ player, size = 'md' }: { player?: Player; size?: 'sm' | 'md' | 'lg' | 'xl' }) {
+  const sizes = { sm: 'h-7 w-7 text-sm', md: 'h-9 w-9 text-base', lg: 'h-11 w-11 text-lg', xl: 'h-20 w-20 text-3xl' };
   const [broken, setBroken] = useState<string | null>(null);
-  const photo = player?.photoUrl && player.photoUrl !== broken ? player.photoUrl : null;
+  const photo = player?.photoUrl && player.usePhoto !== false && player.photoUrl !== broken ? player.photoUrl : null;
   return (
     <span
       className={`inline-grid shrink-0 place-items-center overflow-hidden rounded-full font-display font-semibold text-white ring-2 ring-white ${sizes[size]}`}
