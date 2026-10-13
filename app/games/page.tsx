@@ -3,13 +3,15 @@
 import Link from 'next/link';
 import { ChartColumn, LogOut, Plus, Users } from 'lucide-react';
 import { useGames } from '@/components/games/GamesShell';
-import { useAllGames } from '@/components/games/hooks';
-import { Header, Page } from '@/components/games/ui';
+import { useAllGames, usePlayerMap } from '@/components/games/hooks';
+import { Header, Page, PlayerDot } from '@/components/games/ui';
 import { GAMES } from '@/lib/games/registry';
 
 export default function GamesHome() {
-  const { lock } = useGames();
+  const { lock, account } = useGames();
   const games = useAllGames();
+  const players = usePlayerMap();
+  const me = account ? players?.get(account.playerId) : undefined;
 
   return (
     <>
@@ -23,6 +25,25 @@ export default function GamesHome() {
         }
       />
       <Page>
+        {account && (
+          <div className="mb-4 flex items-center gap-3 rounded-2xl bg-white p-3 shadow-sm">
+            <PlayerDot player={me} />
+            <div className="min-w-0 flex-1">
+              <div className="truncate">
+                Signed in as <span className="font-display text-lg font-medium">{me?.name ?? account.email ?? 'you'}</span>
+              </div>
+              {account.email && me && <div className="truncate text-sm text-ink/50">{account.email}</div>}
+            </div>
+            {me && (
+              <Link
+                href={`/games/player?id=${me.id}`}
+                className="shrink-0 rounded-full bg-brand-pale px-4 py-2 font-display font-medium text-brand-dark hover:bg-brand-light/50"
+              >
+                My stats
+              </Link>
+            )}
+          </div>
+        )}
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
           {GAMES.map((def) => {
             const ofType = games?.filter((g) => g.type === def.id) ?? [];

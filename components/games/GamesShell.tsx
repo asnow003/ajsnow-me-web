@@ -3,9 +3,11 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { LoaderCircle, LockOpen, ShieldCheck } from 'lucide-react';
 import { deriveAdminPinKey, derivePinKey } from '@/lib/games/pin';
-import { BACKEND_CONFIGURED, getBackend, type Backend, type FamilyStore } from '@/lib/games/store';
+import { BACKEND_CONFIGURED, getBackend, type AuthUser, type Backend, type FamilyStore } from '@/lib/games/store';
+import LinkAccountScreen from './LinkAccountScreen';
 import PinPad from './PinPad';
 import PinScreen from './PinScreen';
+import SignInScreen from './SignInScreen';
 
 const SESSION_KEY = 'games.session';
 const ADMIN_KEY = 'games.admin';
@@ -20,6 +22,13 @@ interface GamesContextValue {
   requireAdmin: (action: () => void) => void;
   // Resets the database connection; see Backend.reconnect.
   reconnect: () => Promise<void>;
+  // The signed-in account and its player, or null when the device was unlocked with the family PIN.
+  account: Account | null;
+}
+
+export interface Account {
+  email: string | null;
+  playerId: string;
 }
 
 export const GamesContext = createContext<GamesContextValue | null>(null);
@@ -43,8 +52,24 @@ export function useGames(): GamesContextValue {
 type State =
   | { status: 'checking' }
   | { status: 'locked' }
-  | { status: 'unlocked'; backend: Backend; familyId: string }
+  | { status: 'sign-in'; backend: Backend }
+  | { status: 'link'; backend: Backend; user: AuthUser }
+  | { status: 'unlocked'; backend: Backend; familyId: string; account: Account | null }
   | { status: 'error'; message: string };
+
+// The current account, once the auth library has loaded whoever was signed in on this device.
+function firstAuthState(backend: Backend): Promise<AuthUser | null> {
+  return new Promise((resolve) => {
+    let done = false;
+    let off: (() => void) | undefined;
+    off = backend.auth.onChange((user) => {
+      if (done) return;
+      done = true;
+      resolve(user);
+      queueMicrotask(() => off?.());
+    });
+  });
+}
 
 function readSession(): string | null {
   try {
@@ -72,30 +97,39 @@ export default function GamesShell({ children }: { children: React.ReactNode }) 
     const familyId = await backend.lookupPin(pinKey);
     if (!familyId) return false;
     writeSession(pinKey);
-    setState({ status: 'unlocked', backend, familyId });
+    setState({ status: 'unlocked', backend, familyId, account: null });
     return true;
   }, []);
+
+  // A signed-in, linked account gets straight in. Otherwise fall back to the remembered family PIN.
+  const boot = useCallback(async () => {
+    const backend = await getBackend();
+    const user = await firstAuthState(backend);
+    if (user) {
+      const member = await backend.getMember(user.uid);
+      if (member) {
+        setState({ status: 'unlocked', backend, familyId: member.familyId, account: { email: user.email, playerId: member.playerId } });
+      } else {
+        setState({ status: 'link', backend, user });
+      }
+      return;
+    }
+    const saved = readSession();
+    if (saved && (await tryKey(saved))) return;
+    writeSession(null);
+    setState({ status: 'locked' });
+  }, [tryKey]);
 
   const check = useCallback(() => {
     if (!BACKEND_CONFIGURED) {
       setState({ status: 'error', message: "The scoreboard database isn't set up yet." });
       return;
     }
-    const saved = readSession();
-    if (!saved) {
-      setState({ status: 'locked' });
-      return;
-    }
     setState({ status: 'checking' });
-    withTimeout(tryKey(saved), CHECK_TIMEOUT_MS)
-      .then((ok) => {
-        if (!ok) {
-          writeSession(null);
-          setState({ status: 'locked' });
-        }
-      })
-      .catch(() => setState({ status: 'error', message: "Couldn't reach the scoreboard. Check your connection." }));
-  }, [tryKey]);
+    withTimeout(boot(), CHECK_TIMEOUT_MS).catch(() =>
+      setState({ status: 'error', message: "Couldn't reach the scoreboard. Check your connection." }),
+    );
+  }, [boot]);
 
   useEffect(check, [check]);
 
@@ -107,12 +141,17 @@ export default function GamesShell({ children }: { children: React.ReactNode }) 
 
   const unlock = useCallback(async (pin: string) => tryKey(await derivePinKey(pin)), [tryKey]);
 
-  // Logging out forgets the family PIN and ends admin mode on this device.
+  // Logging out forgets the family PIN, signs out of any account, and ends admin mode on this device.
   const lock = useCallback(() => {
     writeSession(null);
     writeAdminUntil('', null);
+    getBackend()
+      .then((backend) => backend.auth.signOut())
+      .catch(() => {});
     setState({ status: 'locked' });
   }, []);
+
+  const openSignIn = useCallback(async () => setState({ status: 'sign-in', backend: await getBackend() }), []);
 
   if (state.status === 'checking') {
     return (
@@ -135,10 +174,28 @@ export default function GamesShell({ children }: { children: React.ReactNode }) 
     );
   }
 
-  if (state.status === 'locked') return <PinScreen onSubmit={unlock} />;
+  if (state.status === 'locked') return <PinScreen onSubmit={unlock} onSignIn={openSignIn} />;
+
+  if (state.status === 'sign-in') {
+    return <SignInScreen auth={state.backend.auth} onSignedIn={check} onBack={() => setState({ status: 'locked' })} />;
+  }
+
+  if (state.status === 'link') {
+    const { backend, user } = state;
+    return (
+      <LinkAccountScreen
+        backend={backend}
+        user={user}
+        onLinked={(familyId, playerId) =>
+          setState({ status: 'unlocked', backend, familyId, account: { email: user.email, playerId } })
+        }
+        onCancel={lock}
+      />
+    );
+  }
 
   return (
-    <Unlocked backend={state.backend} familyId={state.familyId} lock={lock}>
+    <Unlocked backend={state.backend} familyId={state.familyId} account={state.account} lock={lock}>
       {children}
     </Unlocked>
   );
@@ -166,11 +223,13 @@ function writeAdminUntil(familyId: string, until: number | null) {
 function Unlocked({
   backend,
   familyId,
+  account,
   lock,
   children,
 }: {
   backend: Backend;
   familyId: string;
+  account: Account | null;
   lock: () => void;
   children: React.ReactNode;
 }) {
@@ -251,7 +310,7 @@ function Unlocked({
   const left = isAdmin ? Math.ceil((adminUntil - now) / 1000) : 0;
 
   return (
-    <GamesContext.Provider value={{ store, localMode: backend.mode === 'local', lock, isAdmin, requireAdmin, reconnect }}>
+    <GamesContext.Provider value={{ store, localMode: backend.mode === 'local', lock, isAdmin, requireAdmin, reconnect, account }}>
       {backend.mode === 'local' && (
         <div className="bg-playing-bg px-4 py-1.5 text-center text-sm text-playing-text">
           Local test mode: data is saved only in this browser.

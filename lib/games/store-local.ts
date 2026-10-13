@@ -1,5 +1,5 @@
 import { deriveAdminPinKey, derivePinKey } from './pin';
-import type { Backend, FamilyStore } from './store';
+import type { AuthApi, AuthUser, Backend, FamilyStore, Member } from './store';
 import type { Game, NewGame, NewPlayer, Player } from './types';
 
 // Development stand-in for Firestore. PIN is 0000, admin PIN is 9999. Changes sync live between tabs.
@@ -78,6 +78,62 @@ const store: FamilyStore = {
   },
 };
 
+// Fake sign-in for local mode. Accounts live in this browser; "Google" signs in as a fixed test account.
+const ACCOUNTS_KEY = 'games.local.accounts';
+const AUTH_KEY = 'games.local.auth';
+const MEMBERS_KEY = 'games.local.members';
+const authListeners = new Set<(user: AuthUser | null) => void>();
+
+function readJson<T>(key: string, fallback: T): T {
+  try {
+    return (JSON.parse(localStorage.getItem(key) ?? '') as T) ?? fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function setCurrentUser(user: AuthUser | null) {
+  if (user) localStorage.setItem(AUTH_KEY, JSON.stringify(user));
+  else localStorage.removeItem(AUTH_KEY);
+  authListeners.forEach((l) => l(user));
+}
+
+function authFail(code: string): never {
+  throw Object.assign(new Error(code), { code });
+}
+
+const localAuth: AuthApi = {
+  onChange(cb) {
+    authListeners.add(cb);
+    queueMicrotask(() => cb(readJson<AuthUser | null>(AUTH_KEY, null)));
+    return () => void authListeners.delete(cb);
+  },
+  async signInWithGoogle() {
+    setCurrentUser({ uid: 'local-google', email: 'tester@gmail.com', displayName: 'Google Tester' });
+  },
+  async signInWithEmail(email, password) {
+    const account = readJson<Record<string, { password: string; uid: string }>>(ACCOUNTS_KEY, {})[email.toLowerCase()];
+    if (!account || account.password !== password) authFail('auth/invalid-credential');
+    setCurrentUser({ uid: account.uid, email, displayName: null });
+  },
+  async createAccount(email, password) {
+    if (!/^\S+@\S+\.\S+$/.test(email)) authFail('auth/invalid-email');
+    if (password.length < 6) authFail('auth/weak-password');
+    const accounts = readJson<Record<string, { password: string; uid: string }>>(ACCOUNTS_KEY, {});
+    if (accounts[email.toLowerCase()]) authFail('auth/email-already-in-use');
+    const uid = `local-${crypto.randomUUID()}`;
+    accounts[email.toLowerCase()] = { password, uid };
+    localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(accounts));
+    setCurrentUser({ uid, email, displayName: null });
+  },
+  async resetPassword(email) {
+    if (!/^\S+@\S+\.\S+$/.test(email)) authFail('auth/invalid-email');
+  },
+  async signOut() {
+    setCurrentUser(null);
+  },
+};
+
 export const localBackend: Backend = {
   mode: 'local',
   async lookupPin(pinKey) {
@@ -87,6 +143,13 @@ export const localBackend: Backend = {
     return adminKey === (await deriveAdminPinKey(LOCAL_ADMIN_PIN)) ? 'local' : null;
   },
   family: () => store,
+  auth: localAuth,
+  async getMember(uid) {
+    return readJson<Record<string, Member>>(MEMBERS_KEY, {})[uid] ?? null;
+  },
+  async setMember(uid, member) {
+    localStorage.setItem(MEMBERS_KEY, JSON.stringify({ ...readJson<Record<string, Member>>(MEMBERS_KEY, {}), [uid]: member }));
+  },
   async reconnect() {
     if (localStorage.getItem(STALL_KEY) === 'forever') return;
     stalled = false;

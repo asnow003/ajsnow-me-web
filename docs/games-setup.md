@@ -67,6 +67,33 @@ The admin PIN only gates actions inside the app. Anyone with the family PIN coul
 directly with the browser's developer tools, so treat it as a lock against playing around, not a
 security boundary.
 
+## 7. Optional sign-in (Google and email)
+
+Family members can sign in instead of using the PIN. The first time, they enter the family PIN once
+and pick which player they are; after that, signing in is enough on any device. The PIN keeps working.
+
+1. **Rules:** publish the latest [`firestore.rules`](../firestore.rules), which adds the `members` block.
+2. **Turn on Authentication:** Firebase console → **Build → Authentication → Get started**.
+3. **Sign-in methods** tab:
+   - **Email/Password**: enable the first switch (Email/Password). Leave "Email link" off.
+   - **Google**: enable, pick a support email, save.
+4. **Settings → Authorized domains**: add `www.ajsnow.me` and `ajsnow.me` (`localhost` is there already).
+5. **Google redirect address**, so Google sign-in works on the live site and in the iPhone home-screen
+   app: in [Google Cloud console](https://console.cloud.google.com/apis/credentials) for the
+   `ajsnow-net` project → **APIs & Services → Credentials** → open the OAuth client named
+   "Web client (auto created by Google Service)":
+   - **Authorized JavaScript origins**: add `https://www.ajsnow.me`
+   - **Authorized redirect URIs**: add `https://www.ajsnow.me/__/auth/handler`
+   - Save. It can take a few minutes to take effect.
+6. **Optional:** in Google Cloud → **Google Auth Platform → Branding**, set the app name to
+   "Family Card Games" so Google's sign-in screen doesn't show the project number. In Firebase →
+   **Authentication → Templates**, you can set the sender name for password-reset emails.
+
+The live site serves Firebase's sign-in helper pages itself from `public/__/auth/` (copied from
+`https://ajsnow-net.firebaseapp.com/__/auth/`). If Google sign-in ever breaks after a Firebase update,
+re-copy `handler`, `handler.js`, `experiments.js`, `iframe` and `iframe.js` from there, saving the two
+pages as `handler.html` and `iframe.html`.
+
 ## Changing the PIN later
 
 1. Run `node scripts/pin-hash.mjs <new PIN> <familyId>`, with the familyId from step 5.
@@ -89,4 +116,4 @@ site's code could try them all. That's fine for game scores. Don't store anythin
 ## Local development
 
 `npm run dev` uses a local test mode until `firebase-config.ts` is filled in. Data stays in the
-browser, the PIN is `0000`, and the admin PIN is `9999`. After setup, `npm run dev:local` uses test mode so you can try things without touching real data.
+browser, the PIN is `0000`, the admin PIN is `9999`, and "Continue with Google" signs in as a test account. After setup, `npm run dev:local` uses test mode so you can try things without touching real data.

@@ -15,6 +15,14 @@ service cloud.firestore {
       allow get: if true;
     }
 
+    // Links a signed-in account to its family and player. Only that account can read or write its own link.
+    match /members/{uid} {
+      allow read, delete: if request.auth != null && request.auth.uid == uid;
+      allow create, update: if request.auth != null && request.auth.uid == uid
+        && request.resource.data.familyId is string
+        && request.resource.data.playerId is string;
+    }
+
     match /families/{familyId}/players/{playerId} {
       allow read, delete: if true;
       allow create, update: if request.resource.data.name is string

@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Search, UserPlus } from 'lucide-react';
 import { useGames } from '@/components/games/GamesShell';
 import { usePlayers } from '@/components/games/hooks';
@@ -14,9 +14,18 @@ import { getGameDef } from '@/lib/games/registry';
 export default function NewGame({ type }: { type: string }) {
   const def = getGameDef(type)!;
   const router = useRouter();
-  const { store } = useGames();
+  const { store, account } = useGames();
   const players = usePlayers();
   const [seats, setSeats] = useState<string[]>([]);
+  const [preset, setPreset] = useState(false);
+
+  // A signed-in player starts out seated first; they can still tap to change it.
+  useEffect(() => {
+    if (preset || !players) return;
+    setPreset(true);
+    const me = account && players.find((p) => p.id === account.playerId && !p.hidden);
+    if (me) setSeats([me.id]);
+  }, [account, players, preset]);
   const [query, setQuery] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
