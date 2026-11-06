@@ -32,10 +32,11 @@ export const estimationScorer: GameScorer = {
     return (
       <span className="whitespace-nowrap">
         {index + 1}
-        {i.kind === 'normal' ? (
-          <> · <SuitMark suit={i.trump} /></>
-        ) : (
+        {i.kind !== 'normal' ? (
           <span className="text-xs"> · {i.kind === 'no-trump' ? 'NT' : 'Mis'}</span>
+        ) : (
+          // Rounds saved before the trump picker was removed still show their suit.
+          i.trump && <> · <SuitMark suit={i.trump} /></>
         )}
       </span>
     );
@@ -92,7 +93,7 @@ function EstimationPanel({ game, def, players, editRound, onDoneEditing, saveRou
   };
 
   const shell = (children: React.ReactNode) => (
-    <div ref={ref} className="scroll-mt-28 rounded-3xl bg-white p-4 shadow-md sm:p-5">
+    <div ref={ref} className="scroll-mt-40 rounded-3xl bg-white p-4 shadow-md sm:p-5 md:scroll-mt-28">
       {children}
     </div>
   );
@@ -244,9 +245,11 @@ function RoundEditor({
   onCancel?: () => void;
   onChangeBids?: () => void;
 }) {
-  const [trump, setTrump] = useState<Suit | null>(initial.trump);
   const [bids, setBids] = useState<Record<string, number>>(initial.bids);
-  const [tricks, setTricks] = useState<Record<string, number>>(initial.tricks ?? {});
+  // Tricks start at 0, so the scorekeeper only taps the players who took some.
+  const [tricks, setTricks] = useState<Record<string, number>>(() =>
+    Object.fromEntries(game.playerIds.map((p) => [p, initial.tricks?.[p] ?? 0])),
+  );
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -255,28 +258,21 @@ function RoundEditor({
   const dealer = game.playerIds[dealerIndex(index, game.playerIds.length)];
   const totalBid = Object.values(bids).reduce((a, b) => a + b, 0);
   const totalTricks = Object.values(tricks).reduce((a, b) => a + b, 0);
-  const needsTrump = kind === 'normal' && showBids;
 
   // What's still needed before the round can be saved. The save button stays off until this is null.
   const names = (ids: string[]) => ids.map((p) => players.get(p)?.name).join(', ');
   const missingBids = showBids ? order.filter((p) => bids[p] === undefined) : [];
-  const missingTricks = showTricks ? order.filter((p) => tricks[p] === undefined) : [];
-  const waiting =
-    needsTrump && !trump
-      ? 'Pick the trump suit'
-      : missingBids.length
-        ? `Waiting on ${missingBids.length === order.length ? 'everyone' : names(missingBids)} to bid`
-        : missingTricks.length
-          ? `Waiting on tricks for ${missingTricks.length === order.length ? 'everyone' : names(missingTricks)}`
-          : showTricks && totalTricks !== cards
-            ? `Tricks need to add up to ${cards}`
-            : null;
+  const waiting = missingBids.length
+    ? `Waiting on ${missingBids.length === order.length ? 'everyone' : names(missingBids)} to bid`
+    : showTricks && totalTricks !== cards
+      ? `Tricks need to add up to ${cards}`
+      : null;
 
   const save = async () => {
     if (waiting) return;
     setBusy(true);
     try {
-      await onSave({ cards, kind, trump: kind === 'normal' ? trump : null, bids, tricks: showTricks ? tricks : null });
+      await onSave({ cards, kind, trump: initial.trump, bids, tricks: showTricks ? tricks : null });
     } catch {
       setError("Couldn't save. Check your connection and try again.");
     }
@@ -294,12 +290,13 @@ function RoundEditor({
         : totalBid < cards
           ? `${cards - totalBid} under`
           : `${totalBid - cards} over`;
-  // Once bids are locked in, the player left of the dealer (first to bid) leads the first trick.
-  const leader = showTricks && !showBids && !editing ? order[0] : null;
+  // The player left of the dealer (first to bid) leads the first trick.
+  const leader = order[0];
+  const showLeaderBanner = showTricks && !showBids && !editing;
 
   return (
     <>
-      <RoundHeading index={index} total={total} spec={initial} trump={needsTrump ? null : initial.trump} />
+      <RoundHeading index={index} total={total} spec={initial} trump={initial.trump} />
       <p className="mt-1 text-sm text-ink/60">
         {editing
           ? 'Correct this round and the totals update.'
@@ -311,7 +308,7 @@ function RoundEditor({
       </p>
 
       {showBids && (
-        <div className="sticky top-[84px] z-10 mt-3 flex items-center gap-3 rounded-2xl bg-ink px-4 py-2.5 text-white shadow-md sm:top-[104px]" aria-live="polite">
+        <div className="sticky top-[136px] z-10 mt-3 flex items-center gap-3 rounded-2xl bg-ink px-4 py-2.5 text-white shadow-md sm:top-[152px] md:top-[104px]" aria-live="polite">
           <span className="font-display text-3xl font-semibold tabular-nums">{totalBid}</span>
           <span className="flex-1 leading-tight text-white/80">
             bid on {cards} {cards === 1 ? 'card' : 'cards'}
@@ -323,36 +320,11 @@ function RoundEditor({
         </div>
       )}
 
-      {leader && (
+      {showLeaderBanner && (
         <div className="mt-3 flex items-center gap-3 rounded-2xl p-3 text-white shadow-md" style={{ background: def.color }}>
           <PlayerDot player={players.get(leader)} />
           <span className="min-w-0 flex-1 truncate font-display text-xl font-semibold">{players.get(leader)?.name} leads</span>
           <span className="shrink-0 text-sm text-white/85">first trick</span>
-        </div>
-      )}
-
-      {needsTrump && (
-        <div className="mt-4">
-          <div className="mb-1.5 text-sm font-medium text-ink/60">Trump</div>
-          <div className="grid grid-cols-4 gap-2">
-            {SUITS.map((s) => (
-              <button
-                key={s.suit}
-                onClick={() => {
-                  setTrump(s.suit);
-                  setError('');
-                }}
-                aria-pressed={trump === s.suit}
-                aria-label={{ S: 'Spades', H: 'Hearts', D: 'Diamonds', C: 'Clubs' }[s.suit]}
-                className={`h-12 rounded-xl border-2 text-3xl leading-none transition active:scale-95 ${
-                  trump === s.suit ? 'text-white' : s.red ? 'border-ink/10 text-danger' : 'border-ink/10 text-ink'
-                }`}
-                style={trump === s.suit ? { background: def.color, borderColor: def.color } : undefined}
-              >
-                {s.symbol}
-              </button>
-            ))}
-          </div>
         </div>
       )}
 
@@ -411,7 +383,7 @@ function RoundEditor({
       {showTricks && (
         <p className={`mt-3 text-center text-sm ${left < 0 ? 'font-medium text-danger' : 'text-ink/60'}`}>
           {left === 0
-            ? `All ${cards} tricks counted`
+            ? `All ${cards} ${cards === 1 ? 'trick' : 'tricks'} counted`
             : left > 0
               ? `${totalTricks} of ${cards} tricks counted`
               : `${-left} too many tricks counted`}
@@ -428,7 +400,7 @@ function RoundEditor({
       {onChangeBids && (
         <button onClick={onChangeBids} className="mx-auto mt-3 flex items-center gap-1 text-sm text-ink/60 underline hover:text-ink">
           <Pencil className="h-4 w-4" aria-hidden="true" />
-          Change bids or trump
+          Change bids
         </button>
       )}
       {onCancel && (

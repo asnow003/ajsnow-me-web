@@ -92,6 +92,7 @@ export default function PlayGame({ type }: { type: string }) {
         }
       />
       <Page>
+        <PinnedNames game={game} seated={seated} def={def} />
         {!playing && (
           <div className="mb-5 flex flex-col items-center gap-3 rounded-3xl bg-done-bg p-5 text-done-text sm:flex-row">
             <Trophy className="h-10 w-10 shrink-0 text-playing" aria-hidden="true" />
@@ -254,13 +255,15 @@ function Scoreboard({
       </ul>
 
       {/* Tablet and up: the full round-by-round table */}
-      <div className="hidden overflow-x-auto md:block">
+      <div className="hidden md:block">
         <table className="w-full table-fixed text-center tabular-nums">
           <thead>
             <tr>
-              <th className="w-20 pb-3 text-left text-sm font-normal text-ink/50">{scorer?.roundNoun ?? 'Round'}</th>
+              <th className="sticky top-[92px] z-10 w-20 bg-white pb-3 pt-2 text-left text-sm font-normal text-ink/50">
+                {scorer?.roundNoun ?? 'Round'}
+              </th>
               {game.playerIds.map((pid, i) => (
-                <th key={pid} className="min-w-[90px] pb-3 font-normal">
+                <th key={pid} className="sticky top-[92px] z-10 bg-white pb-3 pt-2 font-normal">
                   <div className="flex flex-col items-center gap-1">
                     <PlayerDot player={seated[i]} size="lg" />
                     <span className="max-w-full truncate font-display text-lg font-medium">{seated[i]?.name ?? 'Unknown'}</span>
@@ -409,5 +412,27 @@ function PlaceBadge({ place, color }: { place: number; color: string }) {
     >
       {place}
     </span>
+  );
+}
+
+// Phones show the scores as a list, so this row keeps names and totals in view while entering a round.
+// Tablets and computers pin the scoreboard table's own name row instead.
+function PinnedNames({ game, seated, def }: { game: Game; seated: (Player | undefined)[]; def: GameDef }) {
+  const t = totals(game);
+  const lead = new Set(leaders(game, def.winRule));
+  return (
+    <div
+      className="sticky top-[76px] z-10 mb-3 grid h-[52px] items-center gap-1 rounded-xl bg-white px-2 text-center shadow-md sm:top-[92px] md:hidden"
+      style={{ gridTemplateColumns: `repeat(${game.playerIds.length}, minmax(0, 1fr))` }}
+    >
+      {game.playerIds.map((pid, i) => (
+        <div key={pid} className="min-w-0 border-b-[3px] leading-tight" style={{ borderColor: seated[i]?.color ?? '#888780' }}>
+          <div className="truncate text-xs text-ink/70">{seated[i]?.name ?? 'Unknown'}</div>
+          <div className="font-display text-lg font-semibold tabular-nums" style={lead.has(pid) ? { color: def.color } : undefined}>
+            {t[pid]}
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }
