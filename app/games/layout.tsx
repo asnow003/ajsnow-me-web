@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import { Fredoka } from 'next/font/google';
 import GamesShell from '@/components/games/GamesShell';
 
-const fredoka = Fredoka({ subsets: ['latin'], weight: ['400', '500', '600'], variable: '--font-fredoka' });
+const fredoka = Fredoka({ subsets: ['latin'], weight: ['400', '500', '600'], variable: '--font-display' });
 
 export const metadata: Metadata = {
   title: { absolute: 'Family Card Games' },

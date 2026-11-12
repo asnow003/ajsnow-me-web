@@ -1,6 +1,5 @@
-import { getApp, getApps, initializeApp } from 'firebase/app';
 import {
-  addDoc, collection, deleteDoc, disableNetwork, doc, enableNetwork, getDoc, initializeFirestore, onSnapshot, setDoc,
+  addDoc, collection, deleteDoc, disableNetwork, doc, enableNetwork, getDoc, onSnapshot, setDoc,
   updateDoc, type Firestore,
 } from 'firebase/firestore';
 import {
@@ -8,13 +7,13 @@ import {
   sendPasswordResetEmail, signInWithEmailAndPassword, signInWithPopup, signInWithRedirect, signOut,
   type Auth,
 } from 'firebase/auth';
-import { firebaseConfig } from './firebase-config';
+import { firebaseApp, firestore } from '../firebase';
 import type { AuthApi, Backend, FamilyStore, Member } from './store';
 import type { Game, Player } from './types';
 
 export function createFirestoreBackend(): Backend {
-  const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
-  const db = initializeFirestore(app, { ignoreUndefinedProperties: true });
+  const app = firebaseApp();
+  const db = firestore();
 
   return {
     mode: 'firestore',

@@ -19,9 +19,14 @@ const config: Config = {
         danger: '#A32D2D',
         // "Ready" action buttons. A true green kept apart from Golf's teal so it never reads as a game color.
         go: { DEFAULT: '#2E7D32', dark: '#1B5E20' },
+        // The current app's accent, set as --accent on its layout. Shared screens (sign-in) use it.
+        accent: 'var(--accent, #534AB7)',
+        // Flashcards app.
+        fc: { DEFAULT: '#0F766E', dark: '#115E59', deep: '#134E4A', pale: '#E3F1EE' },
       },
       fontFamily: {
-        display: ['var(--font-fredoka)', 'ui-rounded', 'system-ui', 'sans-serif'],
+        // Each app sets --font-display on its layout: Fredoka for the games, Fraunces for flashcards.
+        display: ['var(--font-display)', 'ui-rounded', 'system-ui', 'sans-serif'],
       },
       keyframes: {
         shake: {
@@ -29,8 +34,19 @@ const config: Config = {
           '20%, 60%': { transform: 'translateX(-8px)' },
           '40%, 80%': { transform: 'translateX(8px)' },
         },
+        'card-in': {
+          from: { opacity: '0', transform: 'translateY(12px) scale(0.98)' },
+          to: { opacity: '1', transform: 'none' },
+        },
+        'fade-in': { from: { opacity: '0' }, to: { opacity: '1' } },
+        'sheet-in': { from: { transform: 'translateY(24px)', opacity: '0' }, to: { transform: 'none', opacity: '1' } },
       },
-      animation: { shake: 'shake 400ms ease-in-out' },
+      animation: {
+        shake: 'shake 400ms ease-in-out',
+        'card-in': 'card-in 280ms cubic-bezier(0.2, 0.8, 0.2, 1)',
+        'fade-in': 'fade-in 160ms ease-out',
+        'sheet-in': 'sheet-in 220ms cubic-bezier(0.2, 0.8, 0.2, 1)',
+      },
     },
   },
   plugins: [

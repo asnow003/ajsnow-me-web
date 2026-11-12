@@ -36,5 +36,17 @@ service cloud.firestore {
         && request.resource.data.playerIds is list
         && request.resource.data.rounds is list;
     }
+
+    // Flashcards (/flashcards): each signed-in account's groups are private to it. Cards live in the group document.
+    match /users/{uid}/flashcardGroups/{groupId} {
+      allow read, delete: if request.auth != null && request.auth.uid == uid;
+      allow create, update: if request.auth != null && request.auth.uid == uid
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 60
+        && request.resource.data.color is string
+        && request.resource.data.cards is list
+        && request.resource.data.cards.size() <= 2000;
+    }
   }
 }

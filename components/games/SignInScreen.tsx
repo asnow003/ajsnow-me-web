@@ -7,8 +7,23 @@ import { ReadyButton } from './ui';
 
 type Mode = 'sign-in' | 'create' | 'reset';
 
-// Optional sign-in with Google or email and password. The family PIN screen stays the default way in.
-export default function SignInScreen({ auth, onSignedIn, onBack }: { auth: AuthApi; onSignedIn: () => void; onBack: () => void }) {
+// Sign-in with Google or email and password. In the games it's optional (the family PIN stays the default way
+// in); flashcards use it as the only way in, with their own heading and no back link.
+export default function SignInScreen({
+  auth,
+  onSignedIn,
+  onBack,
+  backLabel = 'Use the family PIN',
+  heading,
+  footnote = 'Kids can keep using the family PIN.',
+}: {
+  auth: AuthApi;
+  onSignedIn: () => void;
+  onBack?: () => void;
+  backLabel?: string;
+  heading?: React.ReactNode;
+  footnote?: string | null;
+}) {
   const [mode, setMode] = useState<Mode>('sign-in');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -54,10 +69,13 @@ export default function SignInScreen({ auth, onSignedIn, onBack }: { auth: AuthA
   return (
     <main className="flex min-h-svh items-center justify-center bg-cream px-4 py-6">
       <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-lg">
-        <button onClick={onBack} className="-ml-1 mb-3 flex items-center gap-1 text-sm text-ink/60 hover:text-ink">
-          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-          Use the family PIN
-        </button>
+        {onBack && (
+          <button onClick={onBack} className="-ml-1 mb-3 flex items-center gap-1 text-sm text-ink/60 hover:text-ink">
+            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+            {backLabel}
+          </button>
+        )}
+        {heading}
         <h1 className="font-display text-3xl font-semibold text-ink">{title}</h1>
 
         {mode !== 'reset' && (
@@ -97,7 +115,7 @@ export default function SignInScreen({ auth, onSignedIn, onBack }: { auth: AuthA
             }}
             placeholder="you@email.com"
             aria-label="Email"
-            className="h-12 rounded-xl border-2 border-ink/10 px-4 text-lg outline-none focus:border-brand"
+            className="h-12 rounded-xl border-2 border-ink/10 px-4 text-lg outline-none focus:border-accent"
           />
           {mode !== 'reset' && (
             <input
@@ -110,7 +128,7 @@ export default function SignInScreen({ auth, onSignedIn, onBack }: { auth: AuthA
               }}
               placeholder={mode === 'create' ? 'Password (6+ characters)' : 'Password'}
               aria-label="Password"
-              className="h-12 rounded-xl border-2 border-ink/10 px-4 text-lg outline-none focus:border-brand"
+              className="h-12 rounded-xl border-2 border-ink/10 px-4 text-lg outline-none focus:border-accent"
             />
           )}
           {error && <p className="font-medium text-danger">{error}</p>}
@@ -138,7 +156,7 @@ export default function SignInScreen({ auth, onSignedIn, onBack }: { auth: AuthA
             </button>
           )}
         </p>
-        <p className="mt-5 text-center text-xs text-ink/40">Kids can keep using the family PIN.</p>
+        {footnote && <p className="mt-5 text-center text-xs text-ink/40">{footnote}</p>}
       </div>
     </main>
   );
