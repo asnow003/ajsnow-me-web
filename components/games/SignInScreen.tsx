@@ -68,7 +68,7 @@ export default function SignInScreen({
 
   return (
     <main className="flex min-h-svh items-center justify-center bg-cream px-4 py-6">
-      <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-lg">
+      <div className="w-full max-w-sm rounded-3xl bg-surface p-6 shadow-lg">
         {onBack && (
           <button onClick={onBack} className="-ml-1 mb-3 flex items-center gap-1 text-sm text-ink/60 hover:text-ink">
             <ArrowLeft className="h-4 w-4" aria-hidden="true" />
@@ -83,7 +83,7 @@ export default function SignInScreen({
             <button
               onClick={() => run('google', () => auth.signInWithGoogle())}
               disabled={busy !== null}
-              className="mt-5 flex h-12 w-full items-center justify-center gap-3 rounded-xl border-2 border-ink/15 bg-white font-medium text-ink hover:bg-ink/5 disabled:opacity-60"
+              className="mt-5 flex h-12 w-full items-center justify-center gap-3 rounded-xl border-2 border-ink/15 bg-surface font-medium text-ink hover:bg-ink/5 disabled:opacity-60"
             >
               {busy === 'google' ? <LoaderCircle className="h-5 w-5 animate-spin" aria-hidden="true" /> : <GoogleMark />}
               Continue with Google

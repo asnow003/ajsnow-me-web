@@ -3,8 +3,10 @@
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowLeftRight, Check, LoaderCircle, RotateCcw, Shuffle, Undo2, X } from 'lucide-react';
-import { buildDeck, requeuePosition, shuffle, textSize, type StudyCard } from '@/lib/flashcards/study';
+import { ArrowLeftRight, Check, LoaderCircle, Play, RotateCcw, Shuffle, Undo2, X } from 'lucide-react';
+import { isDue, nextReview } from '@/lib/flashcards/review';
+import { ASK_SIZE_ABOVE, SESSION_SIZES, buildDeck, pickForSession, requeuePosition, shuffle, textSize, type StudyCard, studyHref } from '@/lib/flashcards/study';
+import type { Review } from '@/lib/flashcards/types';
 import { useFlashcards } from './FlashcardsShell';
 import Formatted from './Formatted';
 import { Button, cardCount } from './ui';
@@ -26,50 +28,150 @@ function newSession(cards: StudyCard[]): Session {
   return { cards: shuffled, queue: shuffled, index: 0, results: {} };
 }
 
+const SIZE_KEY = 'flashcards.sessionSize';
+
+function readSize(): number | null {
+  try {
+    const n = Number(localStorage.getItem(SIZE_KEY));
+    return n > 0 ? n : null;
+  } catch {
+    return null;
+  }
+}
+
+// Review updates wait this long and go out together, so a quick run of answers is one save per group.
+const SAVE_DELAY_MS = 2000;
+
 export default function StudyView() {
-  const ids = (useSearchParams().get('g') ?? '').split(',').filter(Boolean);
-  const { groups } = useFlashcards();
+  const params = useSearchParams();
+  const ids = (params.get('g') ?? '').split(',').filter(Boolean);
+  const mode = params.get('mode');
+  const dueOnly = mode === 'due';
+  const missedOnly = mode === 'missed';
+  const { groups, store, save } = useFlashcards();
   const [session, setSession] = useState<Session | null>(null);
+  // How many cards each round takes (null for all), and whether we're still asking.
+  const [size, setSize] = useState<number | null>(null);
+  const [asking, setAsking] = useState(false);
+  // Cards already studied in earlier rounds of this visit, so "Next 10" moves on to new ones.
+  const studied = useRef(new Set<string>());
   const [revealed, setRevealed] = useState(false);
   // Every session starts question first; "Flip sides" switches just this session.
   const [answerFirst, setAnswerFirst] = useState(false);
 
-  // Deal once, when the groups first load. Later edits to the groups don't reshuffle a round in progress.
+  // The cards this visit can study: the chosen groups, only what's due in "due" mode, minus earlier rounds.
   const idKey = ids.join(',');
-  useEffect(() => {
-    if (!groups || session) return;
+  const pool = useCallback(() => {
     const wanted = new Set(idKey.split(','));
-    setSession(newSession(buildDeck(groups.filter((g) => wanted.has(g.id)))));
-  }, [groups, session, idKey]);
+    const deck = buildDeck((groups ?? []).filter((g) => wanted.has(g.id)));
+    return deck.filter(
+      (c) =>
+        (!dueOnly || isDue(c.card)) && (!missedOnly || (c.card.review?.lapses ?? 0) > 0) && !studied.current.has(c.key),
+    );
+  }, [groups, idKey, dueOnly, missedOnly]);
+
+  const startRound = useCallback(
+    (roundSize: number | null) => {
+      const cards = pickForSession(pool(), roundSize);
+      cards.forEach((c) => studied.current.add(c.key));
+      setSession(newSession(cards));
+      setRevealed(false);
+      setAsking(false);
+    },
+    [pool],
+  );
+
+  // When the groups first load: small decks start right away, bigger ones ask how many cards.
+  // Later edits to the groups don't reshuffle a round in progress.
+  const dealt = useRef(false);
+  useEffect(() => {
+    if (!groups || dealt.current) return;
+    dealt.current = true;
+    if (pool().length > ASK_SIZE_ABOVE) {
+      setSize(readSize() ?? SESSION_SIZES[0]);
+      setAsking(true);
+    } else startRound(null);
+  }, [groups, pool, startRound]);
+
+  const chooseSize = (n: number | null) => {
+    setSize(n);
+    try {
+      localStorage.setItem(SIZE_KEY, String(n ?? 0));
+    } catch {
+      // Private browsing: not remembered.
+    }
+  };
 
   const exitHref = ids.length === 1 ? `/flashcards/group?id=${ids[0]}` : '/flashcards';
 
-  const answer = useCallback((result: Result) => {
-    setSession((s) => {
-      if (!s || s.index >= s.queue.length) return s;
-      const current = s.queue[s.index];
-      const queue = [...s.queue];
-      if (result === 'missed') queue.splice(requeuePosition(s.index, queue.length), 0, current);
-      const results = current.key in s.results ? s.results : { ...s.results, [current.key]: result };
-      return { ...s, queue, results, index: s.index + 1 };
-    });
-    setRevealed(false);
-  }, []);
+  // New review schedules waiting to be saved, by group and card.
+  const pending = useRef(new Map<string, Map<string, Review>>());
+  const timer = useRef<ReturnType<typeof setTimeout>>();
+  const flush = useCallback(() => {
+    clearTimeout(timer.current);
+    const batches = Array.from(pending.current);
+    pending.current = new Map();
+    for (const [groupId, updates] of batches) {
+      save(() =>
+        store.changeCards(groupId, (cards) =>
+          cards.map((c) => (updates.has(c.id) ? { ...c, review: updates.get(c.id) } : c)),
+        ),
+      );
+    }
+  }, [save, store]);
+
+  // Save whatever's waiting when leaving the page or putting the phone down.
+  useEffect(() => {
+    const onHide = () => document.visibilityState === 'hidden' && flush();
+    document.addEventListener('visibilitychange', onHide);
+    return () => {
+      document.removeEventListener('visibilitychange', onHide);
+      flush();
+    };
+  }, [flush]);
+
+  const answer = useCallback(
+    (result: Result) => {
+      if (!session || session.index >= session.queue.length) return;
+      const item = session.queue[session.index];
+      // Only the first answer to a card in a session moves its schedule.
+      if (!(item.key in session.results)) {
+        const byGroup = pending.current.get(item.group.id) ?? new Map<string, Review>();
+        byGroup.set(item.card.id, nextReview(item.card.review, result === 'got'));
+        pending.current.set(item.group.id, byGroup);
+        clearTimeout(timer.current);
+        timer.current = setTimeout(flush, SAVE_DELAY_MS);
+      }
+      const queue = [...session.queue];
+      if (result === 'missed') queue.splice(requeuePosition(session.index, queue.length), 0, item);
+      const results = item.key in session.results ? session.results : { ...session.results, [item.key]: result };
+      setSession({ ...session, queue, results, index: session.index + 1 });
+      setRevealed(false);
+    },
+    [session, flush],
+  );
 
   const toggleDirection = () => {
     setAnswerFirst((a) => !a);
     setRevealed(false);
   };
 
-  const restart = (onlyMissed: boolean) => {
+  // After a round: practice just the missed cards, go again with the same cards, or deal the next batch.
+  const restart = (how: 'missed' | 'again' | 'next') => {
     if (!session) return;
-    const cards = onlyMissed ? session.cards.filter((c) => session.results[c.key] === 'missed') : session.cards;
+    if (how === 'next') return startRound(size);
+    const cards = how === 'missed' ? session.cards.filter((c) => session.results[c.key] === 'missed') : session.cards;
     setSession(newSession(cards));
     setRevealed(false);
   };
+  const remaining = session ? pool().length : 0;
 
   const finished = session !== null && session.queue.length > 0 && session.index >= session.queue.length;
   const current = session && !finished ? session.queue[session.index] : null;
+
+  useEffect(() => {
+    if (finished) flush();
+  }, [finished, flush]);
 
   // Keyboard: space or enter flips, arrows answer once the answer is showing.
   useEffect(() => {
@@ -86,6 +188,19 @@ export default function StudyView() {
     return () => window.removeEventListener('keydown', onKey);
   }, [current, revealed, answer]);
 
+  if (asking && groups) {
+    return (
+      <SizePicker
+        available={pool().length}
+        label={dueOnly ? 'due' : missedOnly ? 'missed before' : 'cards'}
+        size={size}
+        onSize={chooseSize}
+        onStart={() => startRound(size)}
+        exitHref={exitHref}
+      />
+    );
+  }
+
   if (!groups || !session) {
     return (
       <div className="grid min-h-svh place-items-center text-fc">
@@ -98,11 +213,36 @@ export default function StudyView() {
     return (
       <div className="grid min-h-svh place-items-center p-6 text-center">
         <div>
-          <p className="font-display text-2xl font-semibold">No cards to study</p>
-          <p className="mt-2 text-ink/60">Add some cards to this group first.</p>
-          <Link href={exitHref} className="mt-6 inline-flex h-11 items-center rounded-xl bg-fc px-5 font-medium text-white">
-            Go back
-          </Link>
+          <p className="font-display text-2xl font-semibold">
+            {dueOnly ? 'All caught up' : missedOnly ? 'Nothing missed yet' : 'No cards to study'}
+          </p>
+          <p className="mt-2 text-ink/60">
+            {dueOnly
+              ? 'Nothing is due for review right now.'
+              : missedOnly
+                ? "You haven't missed any of these cards."
+                : 'Add some cards to this group first.'}
+          </p>
+          <div className="mt-6 flex flex-wrap justify-center gap-2">
+            {(dueOnly || missedOnly) && (
+              <Link
+                href={studyHref(ids, 'all')}
+                onClick={() => {
+                  dealt.current = false;
+                  setSession(null);
+                }}
+                className="inline-flex h-11 items-center rounded-xl bg-fc px-5 font-medium text-white"
+              >
+                Study all anyway
+              </Link>
+            )}
+            <Link
+              href={exitHref}
+              className={`inline-flex h-11 items-center rounded-xl px-5 font-medium ${dueOnly ? 'text-ink/70 hover:bg-ink/5' : 'bg-fc text-white'}`}
+            >
+              Go back
+            </Link>
+          </div>
         </div>
       </div>
     );
@@ -161,7 +301,12 @@ export default function StudyView() {
       </header>
 
       {finished ? (
-        <Summary session={session} exitHref={exitHref} onRestart={restart} />
+        <Summary
+          session={session}
+          exitHref={exitHref}
+          onRestart={restart}
+          next={size && remaining > 0 ? Math.min(size, remaining) : 0}
+        />
       ) : (
         current && (
           <>
@@ -184,7 +329,7 @@ export default function StudyView() {
                   <div className="grid animate-fade-in grid-cols-2 gap-3">
                     <button
                       onClick={() => answer('missed')}
-                      className="flex h-14 items-center justify-center gap-2 rounded-2xl border-2 border-[#E11D48]/25 bg-white text-lg font-semibold text-[#BE123C] shadow-sm transition hover:border-[#E11D48]/50 hover:bg-[#FFF1F2] active:scale-[0.98]"
+                      className="flex h-14 items-center justify-center gap-2 rounded-2xl border-2 border-[#E11D48]/25 bg-surface text-lg font-semibold text-[#E11D48] shadow-sm transition hover:border-[#E11D48]/50 hover:bg-[#E11D48]/10 active:scale-[0.98]"
                     >
                       <Undo2 className="h-5 w-5" aria-hidden="true" />
                       Missed it
@@ -316,7 +461,7 @@ function Face({
   const ring = tint === 'got' ? 'ring-4 ring-done/60' : tint === 'missed' ? 'ring-4 ring-[#E11D48]/50' : 'ring-1 ring-ink/[0.07]';
   return (
     <div
-      className={`relative flex min-h-[min(58svh,480px)] flex-col overflow-hidden rounded-[28px] bg-white shadow-[0_12px_40px_-12px_rgba(31,29,43,0.25)] transition-shadow [grid-area:1/1] ${ring}`}
+      className={`relative flex min-h-[min(58svh,480px)] flex-col overflow-hidden rounded-[28px] bg-surface shadow-[0_12px_40px_-12px_rgba(31,29,43,0.25)] transition-shadow [grid-area:1/1] ${ring}`}
       style={{
         backfaceVisibility: 'hidden',
         WebkitBackfaceVisibility: 'hidden',
@@ -347,10 +492,13 @@ function Summary({
   session,
   exitHref,
   onRestart,
+  next,
 }: {
   session: Session;
   exitHref: string;
-  onRestart: (onlyMissed: boolean) => void;
+  onRestart: (how: 'missed' | 'again' | 'next') => void;
+  // How many cards the next batch would have, or 0 when this round took everything.
+  next: number;
 }) {
   const total = session.cards.length;
   const missedCards = session.cards.filter((c) => session.results[c.key] === 'missed');
@@ -363,10 +511,10 @@ function Summary({
   return (
     <main className="flex-1 overflow-y-auto px-4 pb-[max(24px,env(safe-area-inset-bottom))] pt-6 sm:px-6">
       <div className="mx-auto max-w-2xl animate-card-in">
-        <div className="rounded-[28px] bg-white px-6 py-8 text-center shadow-[0_12px_40px_-12px_rgba(31,29,43,0.25)] ring-1 ring-ink/[0.07] sm:py-10">
+        <div className="rounded-[28px] bg-surface px-6 py-8 text-center shadow-[0_12px_40px_-12px_rgba(31,29,43,0.25)] ring-1 ring-ink/[0.07] sm:py-10">
           <div className="relative mx-auto h-36 w-36">
             <svg viewBox="0 0 120 120" className="h-full w-full -rotate-90">
-              <circle cx="60" cy="60" r={r} fill="none" stroke="rgba(31,29,43,0.07)" strokeWidth="10" />
+              <circle cx="60" cy="60" r={r} fill="none" stroke="currentColor" className="text-ink/10" strokeWidth="10" />
               <circle
                 cx="60"
                 cy="60"
@@ -388,17 +536,27 @@ function Summary({
           <p className="mt-2 text-ink/60">
             You got {got} of {cardCount(total)} on the first try.
           </p>
+          <p className="mx-auto mt-1 max-w-sm text-sm text-ink/45">
+            Cards you got come back in a few days, a bit later each time. Missed ones are due again next session.
+          </p>
           <div className="mt-7 flex flex-col gap-2 sm:flex-row sm:justify-center">
             {missedCards.length > 0 && (
-              <Button onClick={() => onRestart(true)}>
+              <Button onClick={() => onRestart('missed')}>
                 <RotateCcw className="h-4 w-4" aria-hidden="true" />
                 Practice the {missedCards.length} missed
               </Button>
             )}
-            <Button variant={missedCards.length ? 'secondary' : 'primary'} onClick={() => onRestart(false)}>
-              <Shuffle className="h-4 w-4" aria-hidden="true" />
-              Shuffle &amp; go again
-            </Button>
+            {next > 0 ? (
+              <Button variant={missedCards.length ? 'secondary' : 'primary'} onClick={() => onRestart('next')}>
+                <Play className="h-4 w-4 fill-current" aria-hidden="true" />
+                Next {next} cards
+              </Button>
+            ) : (
+              <Button variant={missedCards.length ? 'secondary' : 'primary'} onClick={() => onRestart('again')}>
+                <Shuffle className="h-4 w-4" aria-hidden="true" />
+                Shuffle &amp; go again
+              </Button>
+            )}
             <Link
               href={exitHref}
               className="inline-flex h-11 items-center justify-center rounded-xl px-4 font-medium text-ink/70 hover:bg-ink/5 hover:text-ink"
@@ -413,7 +571,7 @@ function Summary({
             <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-ink/45">To review</h3>
             <ul className="space-y-3">
               {missedCards.map((c) => (
-                <li key={c.key} className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-ink/[0.06]">
+                <li key={c.key} className="overflow-hidden rounded-2xl bg-surface shadow-sm ring-1 ring-ink/[0.06]">
                   <div className="flex">
                     <span className="w-1.5 shrink-0" style={{ background: c.group.color }} />
                     <div className="grid flex-1 gap-2 p-4 sm:grid-cols-2 sm:gap-6">
@@ -428,5 +586,66 @@ function Summary({
         )}
       </div>
     </main>
+  );
+}
+
+// Asked before a round when there are more than a handful of cards.
+function SizePicker({
+  available,
+  label,
+  size,
+  onSize,
+  onStart,
+  exitHref,
+}: {
+  available: number;
+  label: string;
+  size: number | null;
+  onSize: (size: number | null) => void;
+  onStart: () => void;
+  exitHref: string;
+}) {
+  const options: (number | null)[] = [...SESSION_SIZES.filter((n) => n < available), null];
+  const chosen = size !== null && size >= available ? null : size;
+  return (
+    <div className="flex min-h-svh flex-col px-4 pb-[max(16px,env(safe-area-inset-bottom))] pt-[max(12px,env(safe-area-inset-top))] sm:px-6">
+      <div className="mx-auto w-full max-w-md">
+        <Link
+          href={exitHref}
+          aria-label="Back"
+          className="-ml-2 grid h-10 w-10 place-items-center rounded-full text-ink/60 hover:bg-ink/5 hover:text-ink"
+        >
+          <X className="h-5 w-5" />
+        </Link>
+      </div>
+      <div className="m-auto w-full max-w-md animate-card-in rounded-[28px] bg-surface p-6 text-center shadow-[0_12px_40px_-12px_rgba(0,0,0,0.25)] ring-1 ring-ink/[0.07] sm:p-8">
+        <p className="text-sm font-semibold uppercase tracking-wider text-ink/45">
+          {available} {label}
+        </p>
+        <h1 className="mt-1 font-display text-3xl font-semibold tracking-tight">How many this time?</h1>
+        <p className="mx-auto mt-2 max-w-xs text-sm text-ink/55">
+          Cards due for review come first, then new ones. Each session picks up where the last left off.
+        </p>
+        <div role="radiogroup" aria-label="Cards this session" className="mt-6 grid grid-cols-4 gap-2">
+          {options.map((n) => (
+            <button
+              key={n ?? 'all'}
+              role="radio"
+              aria-checked={chosen === n}
+              onClick={() => onSize(n)}
+              className={`h-14 rounded-2xl text-lg font-semibold tabular-nums transition ${
+                chosen === n ? 'bg-fc text-white shadow-md' : 'bg-ink/[0.05] text-ink/70 hover:bg-ink/10'
+              }`}
+            >
+              {n ?? 'All'}
+            </button>
+          ))}
+        </div>
+        <Button size="lg" className="mt-6 w-full rounded-2xl" onClick={onStart}>
+          <Play className="h-5 w-5 fill-current" aria-hidden="true" />
+          Start {chosen ?? available} cards
+        </Button>
+      </div>
+    </div>
   );
 }

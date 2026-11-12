@@ -4,6 +4,19 @@ export interface Card {
   front: string;
   back: string;
   createdAt: number;
+  // Spaced-repetition schedule (lib/flashcards/review.ts). Missing on cards that haven't been studied yet.
+  review?: Review;
+}
+
+export interface Review {
+  // Leitner box: 0 is "still learning", higher boxes wait longer between reviews.
+  box: number;
+  // When the card is next due, in ms since the epoch.
+  due: number;
+  // Times answered, and times missed.
+  reps: number;
+  lapses: number;
+  last: number;
 }
 
 // A group of cards. Cards live inside their group's document, so a whole group loads, saves and imports in

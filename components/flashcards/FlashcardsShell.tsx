@@ -156,7 +156,7 @@ function Ready({
       {message && (
         <div
           role="status"
-          className="fixed inset-x-0 bottom-[max(16px,env(safe-area-inset-bottom))] z-[60] mx-auto w-fit max-w-[calc(100%-32px)] animate-sheet-in rounded-2xl bg-ink px-5 py-3 text-center text-sm font-medium text-white shadow-xl"
+          className="fixed inset-x-0 bottom-[max(16px,env(safe-area-inset-bottom))] z-[60] mx-auto w-fit max-w-[calc(100%-32px)] animate-sheet-in rounded-2xl bg-ink px-5 py-3 text-center text-sm font-medium text-cream shadow-xl"
         >
           {message}
         </div>

@@ -4,14 +4,12 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { Check, Layers, LoaderCircle, Play, Plus, Shuffle, X } from 'lucide-react';
+import { countDue } from '@/lib/flashcards/review';
+import { studyHref } from '@/lib/flashcards/study';
 import type { Group } from '@/lib/flashcards/types';
 import { useFlashcards } from './FlashcardsShell';
 import { GroupDialog } from './dialogs';
 import { AccountMenu, Button, PageBody, TopBar, cardCount } from './ui';
-
-export function studyHref(groupIds: string[]): string {
-  return `/flashcards/study?g=${groupIds.map(encodeURIComponent).join(',')}`;
-}
 
 export default function FlashcardsHome() {
   const { groups } = useFlashcards();
@@ -30,6 +28,7 @@ export default function FlashcardsHome() {
 
   const selected = groups?.filter((g) => mixing?.has(g.id)) ?? [];
   const selectedCards = selected.reduce((n, g) => n + g.cards.length, 0);
+  const selectedDue = selected.reduce((n, g) => n + countDue(g.cards), 0);
   const studyable = groups?.filter((g) => g.cards.length > 0) ?? [];
 
   return (
@@ -95,19 +94,24 @@ export default function FlashcardsHome() {
       </PageBody>
 
       {mixing && (
-        <div className="fixed inset-x-0 bottom-0 z-30 animate-sheet-in border-t border-ink/10 bg-white/95 pb-[max(12px,env(safe-area-inset-bottom))] pt-3 shadow-[0_-8px_24px_rgba(31,29,43,0.08)] backdrop-blur">
+        <div className="fixed inset-x-0 bottom-0 z-30 animate-sheet-in border-t border-ink/10 bg-surface/95 pb-[max(12px,env(safe-area-inset-bottom))] pt-3 shadow-[0_-8px_24px_rgba(31,29,43,0.08)] backdrop-blur">
           <div className="mx-auto flex max-w-5xl items-center gap-3 px-4 sm:px-6">
             <p className="flex-1 text-sm text-ink/70">
               {selected.length
-                ? `${selected.length} ${selected.length === 1 ? 'group' : 'groups'} · ${cardCount(selectedCards)}`
+                ? `${selected.length} ${selected.length === 1 ? 'group' : 'groups'} · ${cardCount(selectedCards)} · ${selectedDue} due`
                 : 'Tap the groups to study together'}
             </p>
+            {selectedDue > 0 && (
+              <Button variant="secondary" onClick={() => router.push(studyHref(selected.map((g) => g.id), 'all'))}>
+                All
+              </Button>
+            )}
             <Button
               disabled={selectedCards === 0}
-              onClick={() => router.push(studyHref(selected.map((g) => g.id)))}
+              onClick={() => router.push(studyHref(selected.map((g) => g.id), selectedDue ? 'due' : 'all'))}
             >
               <Play className="h-4 w-4 fill-current" aria-hidden="true" />
-              Study
+              {selectedDue ? 'Study due' : 'Study'}
             </Button>
           </div>
         </div>
@@ -132,6 +136,7 @@ function GroupTile({
   onToggle: () => void;
 }) {
   const n = group.cards.length;
+  const due = countDue(group.cards);
   const inner = (
     <>
       {/* A small stack of cards in the group's color. */}
@@ -147,7 +152,18 @@ function GroupTile({
       </div>
       <div className="min-w-0 flex-1">
         <p className="truncate font-display text-lg font-semibold leading-snug">{group.name}</p>
-        <p className="text-sm text-ink/55">{n ? cardCount(n) : 'No cards yet'}</p>
+        <p className="flex items-center gap-2 text-sm text-ink/55">
+          {n ? cardCount(n) : 'No cards yet'}
+          {n > 0 && (
+            <span
+              className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                due ? 'bg-playing-bg text-playing-text' : 'bg-done-bg text-done-text'
+              }`}
+            >
+              {due ? `${due} due` : 'Caught up'}
+            </span>
+          )}
+        </p>
       </div>
     </>
   );
@@ -159,7 +175,7 @@ function GroupTile({
         onClick={onToggle}
         disabled={disabled}
         aria-pressed={selected}
-        className={`flex w-full items-center gap-4 rounded-2xl border-2 bg-white p-4 text-left transition disabled:opacity-40 ${
+        className={`flex w-full items-center gap-4 rounded-2xl border-2 bg-surface p-4 text-left transition disabled:opacity-40 ${
           selected ? 'border-fc shadow-md' : 'border-transparent shadow-sm ring-1 ring-ink/[0.06] hover:ring-ink/15'
         }`}
       >
@@ -176,13 +192,13 @@ function GroupTile({
   }
 
   return (
-    <div className="group relative flex items-center gap-4 rounded-2xl border-2 border-transparent bg-white p-4 shadow-sm ring-1 ring-ink/[0.06] transition hover:-translate-y-0.5 hover:shadow-md">
+    <div className="group relative flex items-center gap-4 rounded-2xl border-2 border-transparent bg-surface p-4 shadow-sm ring-1 ring-ink/[0.06] transition hover:-translate-y-0.5 hover:shadow-md">
       <Link href={`/flashcards/group?id=${group.id}`} className="absolute inset-0 rounded-2xl" aria-label={`Open ${group.name}`} />
       {inner}
       {n > 0 && (
         <Link
-          href={studyHref([group.id])}
-          aria-label={`Study ${group.name}`}
+          href={studyHref([group.id], due ? 'due' : 'all')}
+          aria-label={due ? `Study ${due} due in ${group.name}` : `Study ${group.name}`}
           className="relative grid h-11 w-11 shrink-0 place-items-center rounded-full text-white shadow-sm transition hover:scale-105"
           style={{ background: group.color }}
         >
@@ -199,7 +215,7 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
       <div className="relative mx-auto mb-8 h-36 w-44">
         <span className="absolute left-2 top-4 h-28 w-36 -rotate-6 rounded-2xl bg-fc/25" />
         <span className="absolute left-5 top-2 h-28 w-36 rotate-3 rounded-2xl bg-fc/50" />
-        <span className="absolute left-4 top-3 grid h-28 w-36 place-items-center rounded-2xl bg-white font-display text-3xl font-semibold text-fc shadow-lg ring-1 ring-ink/5">
+        <span className="absolute left-4 top-3 grid h-28 w-36 place-items-center rounded-2xl bg-surface font-display text-3xl font-semibold text-fc shadow-lg ring-1 ring-ink/5">
           Q?
         </span>
       </div>

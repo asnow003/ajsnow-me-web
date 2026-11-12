@@ -9,3 +9,32 @@
     overscroll-behavior: none;
   }
 }
+
+/* Theme colors as RGB channels, read by tailwind.config.ts. Light everywhere by default. */
+:root {
+  --c-cream: 251 248 243;
+  --c-ink: 31 29 43;
+  --c-surface: 255 255 255;
+  --c-fc-deep: 19 78 74;
+  --c-fc-pale: 227 241 238;
+}
+
+/* Flashcards can go dark: data-theme is "light", "dark" or "system" (follow the device). */
+.fc-theme[data-theme='dark'] {
+  --c-cream: 21 23 27;
+  --c-ink: 234 232 226;
+  --c-surface: 33 36 42;
+  --c-fc-deep: 153 226 212;
+  --c-fc-pale: 22 64 60;
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: dark) {
+  .fc-theme[data-theme='system'] {
+    --c-cream: 21 23 27;
+    --c-ink: 234 232 226;
+    --c-surface: 33 36 42;
+    --c-fc-deep: 153 226 212;
+    --c-fc-pale: 22 64 60;
+    color-scheme: dark;
+  }
+}

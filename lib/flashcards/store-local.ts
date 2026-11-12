@@ -1,4 +1,4 @@
-import type { FlashcardStore } from './store';
+import { planTransfer, type FlashcardStore } from './store';
 import type { Group, NewGroup } from './types';
 
 // Development stand-in for Firestore, kept in this browser per test account. Changes sync live between tabs.
@@ -37,10 +37,10 @@ export function localFlashcardStore(uid: string): FlashcardStore {
         window.removeEventListener('storage', onStorage);
       };
     },
-    async createGroup(name, color) {
+    async createGroup(name, color, cards = []) {
       const id = crypto.randomUUID();
       const now = Date.now();
-      change((g) => void (g[id] = { name, color, cards: [], createdAt: now, updatedAt: now }));
+      change((g) => void (g[id] = { name, color, cards, createdAt: now, updatedAt: now }));
       return id;
     },
     async updateGroup(id, patch) {
@@ -54,6 +54,18 @@ export function localFlashcardStore(uid: string): FlashcardStore {
         if (!g[id]) throw new Error('This group was deleted.');
         g[id] = { ...g[id], cards: fn(g[id].cards), updatedAt: Date.now() };
       });
+    },
+    async transferCards(fromId, toId, cardIds, mode) {
+      let count = 0;
+      change((g) => {
+        if (!g[fromId] || !g[toId]) throw new Error('This group was deleted.');
+        const plan = planTransfer(g[fromId].cards, g[toId].cards, cardIds, mode);
+        const now = Date.now();
+        g[fromId] = { ...g[fromId], cards: plan.from, updatedAt: now };
+        g[toId] = { ...g[toId], cards: plan.to, updatedAt: now };
+        count = plan.count;
+      });
+      return count;
     },
   };
 }

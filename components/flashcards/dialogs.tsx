@@ -1,9 +1,12 @@
 'use client';
 
 import { useMemo, useRef, useState } from 'react';
-import { Trash2 } from 'lucide-react';
+import Link from 'next/link';
+import { Copy, FolderInput, Play, Plus, Trash2 } from 'lucide-react';
 import { parseCards } from '@/lib/flashcards/importer';
+import { mostMissed } from '@/lib/flashcards/review';
 import { GROUP_COLORS, MAX_CARDS_PER_GROUP, MAX_GROUP_NAME, MAX_SIDE_LENGTH, type Card, type Group } from '@/lib/flashcards/types';
+import { studyHref } from '@/lib/flashcards/study';
 import { useFlashcards } from './FlashcardsShell';
 import Formatted from './Formatted';
 import { AutoTextarea, Button, ColorPicker, Sheet, cardCount } from './ui';
@@ -16,13 +19,15 @@ export function GroupDialog({
   onClose,
   onCreated,
   onDelete,
+  onDuplicated,
 }: {
   group?: Group;
   onClose: () => void;
   onCreated?: (id: string) => void;
   onDelete?: () => void;
+  onDuplicated?: (id: string) => void;
 }) {
-  const { store, save, groups } = useFlashcards();
+  const { store, save, groups, toast } = useFlashcards();
   const [name, setName] = useState(group?.name ?? '');
   // New groups take the next color in the palette, so a fresh list isn't all one color.
   const [color, setColor] = useState(group?.color ?? GROUP_COLORS[(groups?.length ?? 0) % GROUP_COLORS.length]);
@@ -41,19 +46,28 @@ export function GroupDialog({
     setBusy(false);
   };
 
+  // A copy of the group with fresh cards: same questions and answers, study progress starting over.
+  const duplicate = async () => {
+    if (!group || busy) return;
+    setBusy(true);
+    const now = Date.now();
+    const cards = group.cards.map((c, i) => ({ id: newId(), front: c.front, back: c.back, createdAt: now + i }));
+    const name = `${group.name} (copy)`.slice(0, MAX_GROUP_NAME);
+    let id = '';
+    if (await save(async () => (id = await store.createGroup(name, group.color, cards)))) {
+      toast(`Made a copy of ${group.name}`);
+      onDuplicated?.(id);
+    }
+    setBusy(false);
+  };
+
   return (
     <Sheet
       title={group ? 'Edit group' : 'New group'}
       onClose={onClose}
       footer={
         <>
-          {onDelete && (
-            <Button variant="ghost" onClick={onDelete} className="mr-auto text-danger hover:bg-danger/10 hover:text-danger">
-              <Trash2 className="h-4 w-4" aria-hidden="true" />
-              Delete group
-            </Button>
-          )}
-          <Button variant="secondary" onClick={onClose} className={onDelete ? '' : 'ml-auto'}>
+          <Button variant="secondary" onClick={onClose} className="ml-auto">
             Cancel
           </Button>
           <Button onClick={submit} disabled={!trimmed || busy}>
@@ -77,13 +91,29 @@ export function GroupDialog({
             maxLength={MAX_GROUP_NAME}
             onChange={(e) => setName(e.target.value)}
             placeholder="e.g. Spanish verbs, State capitals"
-            className="h-12 w-full rounded-xl border border-ink/15 px-4 text-lg outline-none transition placeholder:text-ink/35 focus:border-fc focus:ring-4 focus:ring-fc/15"
+            className="h-12 w-full rounded-xl border bg-surface border-ink/15 px-4 text-lg outline-none transition placeholder:text-ink/35 focus:border-fc focus:ring-4 focus:ring-fc/15"
           />
         </label>
         <div>
           <span className="mb-2 block text-sm font-medium text-ink/70">Color</span>
           <ColorPicker value={color} onChange={setColor} />
         </div>
+        {group && (
+          <div className="flex flex-wrap gap-2 border-t border-ink/[0.08] pt-4">
+            {onDuplicated && (
+              <Button type="button" variant="secondary" onClick={duplicate} disabled={busy}>
+                <Copy className="h-4 w-4" aria-hidden="true" />
+                Duplicate group
+              </Button>
+            )}
+            {onDelete && (
+              <Button type="button" variant="ghost" onClick={onDelete} className="text-danger hover:bg-danger/10 hover:text-danger">
+                <Trash2 className="h-4 w-4" aria-hidden="true" />
+                Delete group
+              </Button>
+            )}
+          </div>
+        )}
       </form>
     </Sheet>
   );
@@ -308,7 +338,7 @@ export function ImportDialog({ group, onClose }: { group: Group; onClose: () => 
             the question; the lines under it are the answer.
           </p>
           <p className="mt-1.5 text-fc-deep/75">
-            Need blank lines inside an answer? Put a line with <code className="rounded bg-white/70 px-1">---</code> between
+            Need blank lines inside an answer? Put a line with <code className="rounded bg-surface/70 px-1">---</code> between
             cards instead. Pasting from a spreadsheet with question and answer columns works too.
           </p>
         </div>
@@ -335,6 +365,172 @@ export function ImportDialog({ group, onClose }: { group: Group; onClose: () => 
           </div>
         )}
       </div>
+    </Sheet>
+  );
+}
+
+// Pick the group to move or copy the selected cards into, or name a new one.
+export function TransferDialog({
+  from,
+  cardIds,
+  mode,
+  onClose,
+  onDone,
+}: {
+  from: Group;
+  cardIds: string[];
+  mode: 'move' | 'copy';
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const { groups, store, save, toast } = useFlashcards();
+  const [busy, setBusy] = useState(false);
+  // The name for a new group, once "New group" is tapped.
+  const [newName, setNewName] = useState<string | null>(null);
+  const targets = (groups ?? []).filter((g) => g.id !== from.id);
+  const verb = mode === 'move' ? 'Move' : 'Copy';
+
+  const send = async (to: Group | null) => {
+    if (busy) return;
+    setBusy(true);
+    const name = to?.name ?? (newName ?? '').trim();
+    if (!name) return setBusy(false);
+    const ok = await save(async () => {
+      let toId = to?.id;
+      if (!toId) {
+        const used = new Set((groups ?? []).map((g) => g.color));
+        toId = await store.createGroup(name, GROUP_COLORS.find((c) => !used.has(c)) ?? from.color);
+      }
+      await store.transferCards(from.id, toId, cardIds, mode);
+    });
+    setBusy(false);
+    if (ok) {
+      toast(`${mode === 'move' ? 'Moved' : 'Copied'} ${cardCount(cardIds.length)} to ${name}`);
+      onDone();
+    }
+  };
+
+  return (
+    <Sheet title={`${verb} ${cardCount(cardIds.length)} to…`} onClose={onClose}>
+      <ul className="space-y-2 pb-2 pt-1">
+        {targets.map((g) => {
+          const full = g.cards.length + cardIds.length > MAX_CARDS_PER_GROUP;
+          return (
+            <li key={g.id}>
+              <button
+                onClick={() => send(g)}
+                disabled={busy || full}
+                className="flex w-full items-center gap-3 rounded-2xl p-3 text-left ring-1 ring-ink/[0.08] transition hover:bg-ink/[0.03] hover:ring-ink/20 disabled:opacity-40"
+              >
+                <span
+                  className="grid h-10 w-10 shrink-0 place-items-center rounded-xl font-display font-semibold text-white"
+                  style={{ background: g.color }}
+                >
+                  {g.name.trim().charAt(0).toUpperCase()}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate font-medium">{g.name}</span>
+                  <span className="block text-sm text-ink/55">{full ? 'Too full' : cardCount(g.cards.length)}</span>
+                </span>
+                <FolderInput className="h-4 w-4 shrink-0 text-ink/35" aria-hidden="true" />
+              </button>
+            </li>
+          );
+        })}
+        <li>
+          {newName === null ? (
+            <button
+              onClick={() => setNewName('')}
+              disabled={busy}
+              className="flex w-full items-center gap-3 rounded-2xl border-2 border-dashed border-ink/15 p-3 text-left text-ink/70 transition hover:border-ink/30 hover:text-ink disabled:opacity-40"
+            >
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-ink/[0.05]">
+                <Plus className="h-5 w-5" aria-hidden="true" />
+              </span>
+              <span className="font-medium">New group</span>
+            </button>
+          ) : (
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                send(null);
+              }}
+              className="flex gap-2 rounded-2xl border-2 border-dashed border-ink/15 p-2"
+            >
+              <input
+                autoFocus
+                value={newName}
+                maxLength={MAX_GROUP_NAME}
+                onChange={(e) => setNewName(e.target.value)}
+                placeholder="New group name"
+                className="h-11 min-w-0 flex-1 rounded-xl border border-ink/15 bg-surface px-3 outline-none focus:border-fc focus:ring-4 focus:ring-fc/15"
+              />
+              <Button type="submit" disabled={!newName.trim() || busy}>
+                {verb}
+              </Button>
+            </form>
+          )}
+        </li>
+      </ul>
+    </Sheet>
+  );
+}
+
+// The cards you miss most, worst first, with a way to practice just those.
+export function MostMissedDialog({
+  group,
+  onClose,
+  onOpenCard,
+}: {
+  group: Group;
+  onClose: () => void;
+  onOpenCard: (card: Card) => void;
+}) {
+  const cards = mostMissed(group.cards);
+  const worst = cards[0]?.review?.lapses ?? 1;
+  return (
+    <Sheet
+      title="Most missed"
+      onClose={onClose}
+      wide
+      footer={
+        <Link
+          href={studyHref([group.id], 'missed')}
+          className="ml-auto inline-flex h-11 items-center gap-2 rounded-xl bg-fc px-4 font-medium text-white shadow-sm transition hover:bg-fc-dark active:scale-[0.98]"
+        >
+          <Play className="h-4 w-4 fill-current" aria-hidden="true" />
+          Practice these {cards.length}
+        </Link>
+      }
+    >
+      <p className="pb-3 text-sm text-ink/55">Counted from the first answer to each card in every session.</p>
+      <ol className="space-y-2 pb-2">
+        {cards.map((c, i) => {
+          const { lapses, reps } = c.review!;
+          return (
+            <li key={c.id}>
+              <button
+                onClick={() => onOpenCard(c)}
+                className="flex w-full items-start gap-3 rounded-2xl p-3 text-left ring-1 ring-ink/[0.08] transition hover:bg-ink/[0.03] hover:ring-ink/20"
+              >
+                <span className="mt-0.5 w-6 shrink-0 text-right text-sm font-semibold tabular-nums text-ink/35">{i + 1}</span>
+                <span className="grid min-w-0 flex-1 gap-1 sm:grid-cols-2 sm:gap-4">
+                  <Formatted text={c.front} className="line-clamp-2 font-display font-medium" />
+                  <Formatted text={c.back} className="line-clamp-2 text-sm text-ink/60" />
+                </span>
+                <span className="w-24 shrink-0 text-right">
+                  <span className="block text-sm font-semibold text-[#E11D48]">
+                    missed {lapses} of {reps}
+                  </span>
+                  <span className="mt-1.5 block h-1.5 overflow-hidden rounded-full bg-ink/[0.08]">
+                    <span className="block h-full rounded-full bg-[#E11D48]/70" style={{ width: `${(lapses / worst) * 100}%` }} />
+                  </span>
+                </span>
+              </button>
+            </li>
+          );
+        })}
+      </ol>
     </Sheet>
   );
 }

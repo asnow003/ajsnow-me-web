@@ -12,8 +12,10 @@ const config: Config = {
     extend: {
       colors: {
         brand: { DEFAULT: '#534AB7', dark: '#3C3489', deep: '#26215C', light: '#AFA9EC', pale: '#EEEDFE' },
-        cream: '#FBF8F3',
-        ink: '#1F1D2B',
+        // Page, text and card colors come from CSS variables (globals.css), so flashcards can switch to dark.
+        cream: 'rgb(var(--c-cream) / <alpha-value>)',
+        ink: 'rgb(var(--c-ink) / <alpha-value>)',
+        surface: 'rgb(var(--c-surface) / <alpha-value>)',
         playing: { DEFAULT: '#EF9F27', bg: '#FAEEDA', text: '#633806' },
         done: { DEFAULT: '#1D9E75', bg: '#E1F5EE', text: '#085041' },
         danger: '#A32D2D',
@@ -22,7 +24,7 @@ const config: Config = {
         // The current app's accent, set as --accent on its layout. Shared screens (sign-in) use it.
         accent: 'var(--accent, #534AB7)',
         // Flashcards app.
-        fc: { DEFAULT: '#0F766E', dark: '#115E59', deep: '#134E4A', pale: '#E3F1EE' },
+        fc: { DEFAULT: '#0F766E', dark: '#115E59', deep: 'rgb(var(--c-fc-deep) / <alpha-value>)', pale: 'rgb(var(--c-fc-pale) / <alpha-value>)' },
       },
       fontFamily: {
         // Each app sets --font-display on its layout: Fredoka for the games, Fraunces for flashcards.

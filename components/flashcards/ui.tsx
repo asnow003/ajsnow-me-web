@@ -2,7 +2,8 @@
 
 import Link from 'next/link';
 import { forwardRef, useEffect, useRef, useState } from 'react';
-import { ArrowLeft, Check, LogOut, X } from 'lucide-react';
+import { ArrowLeft, Check, LogOut, Monitor, Moon, Sun, X } from 'lucide-react';
+import { useTheme, type Theme } from '@/lib/flashcards/theme';
 import { GROUP_COLORS } from '@/lib/flashcards/types';
 import { useFlashcards } from './FlashcardsShell';
 
@@ -34,7 +35,7 @@ type Variant = 'primary' | 'secondary' | 'ghost' | 'danger';
 
 const VARIANTS: Record<Variant, string> = {
   primary: 'bg-fc text-white shadow-sm hover:bg-fc-dark disabled:bg-ink/10 disabled:text-ink/40 disabled:shadow-none',
-  secondary: 'border border-ink/15 bg-white text-ink hover:border-ink/25 hover:bg-ink/[0.03] disabled:text-ink/35',
+  secondary: 'border border-ink/15 bg-surface text-ink hover:border-ink/25 hover:bg-ink/[0.03] disabled:text-ink/35',
   ghost: 'text-ink/70 hover:bg-ink/5 hover:text-ink disabled:text-ink/30',
   danger: 'bg-danger text-white hover:bg-[#8A2424]',
 };
@@ -81,14 +82,14 @@ export function Sheet({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex animate-fade-in items-end justify-center bg-ink/40 backdrop-blur-[2px] sm:items-center sm:p-6"
+      className="fixed inset-0 z-50 flex animate-fade-in items-end justify-center bg-black/45 backdrop-blur-[2px] sm:items-center sm:p-6"
       onMouseDown={(e) => e.target === e.currentTarget && onClose()}
     >
       <div
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className={`flex max-h-[92svh] w-full animate-sheet-in flex-col rounded-t-3xl bg-white shadow-2xl sm:max-h-[88svh] sm:rounded-3xl ${wide ? 'sm:max-w-2xl' : 'sm:max-w-md'}`}
+        className={`flex max-h-[92svh] w-full animate-sheet-in flex-col rounded-t-3xl bg-surface shadow-2xl sm:max-h-[88svh] sm:rounded-3xl ${wide ? 'sm:max-w-2xl' : 'sm:max-w-md'}`}
       >
         <div className="flex items-center gap-2 px-5 pb-2 pt-4 sm:px-6 sm:pt-5">
           <h2 className="flex-1 font-display text-xl font-semibold">{title}</h2>
@@ -128,7 +129,38 @@ export function ColorPicker({ value, onChange }: { value: string; onChange: (col
   );
 }
 
-// The signed-in account's photo or initial, with a menu to sign out.
+const THEMES: { value: Theme; label: string; Icon: typeof Sun }[] = [
+  { value: 'system', label: 'Auto', Icon: Monitor },
+  { value: 'light', label: 'Light', Icon: Sun },
+  { value: 'dark', label: 'Dark', Icon: Moon },
+];
+
+function AppearancePicker() {
+  const [theme, setTheme] = useTheme();
+  return (
+    <div className="border-y border-ink/[0.08] px-3 py-3">
+      <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-ink/45">Appearance</p>
+      <div role="radiogroup" aria-label="Appearance" className="grid grid-cols-3 gap-1 rounded-xl bg-ink/[0.05] p-1">
+        {THEMES.map(({ value, label, Icon }) => (
+          <button
+            key={value}
+            role="radio"
+            aria-checked={theme === value}
+            onClick={() => setTheme(value)}
+            className={`flex h-9 items-center justify-center gap-1.5 rounded-lg text-sm font-medium transition ${
+              theme === value ? 'bg-surface text-ink shadow-sm' : 'text-ink/55 hover:text-ink'
+            }`}
+          >
+            <Icon className="h-4 w-4" aria-hidden="true" />
+            {label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// The signed-in account's photo or initial, with appearance settings and a menu to sign out.
 export function AccountMenu() {
   const { user, signOut } = useFlashcards();
   const [open, setOpen] = useState(false);
@@ -164,14 +196,15 @@ export function AccountMenu() {
         )}
       </button>
       {open && (
-        <div className="absolute right-0 top-12 z-40 w-64 animate-fade-in rounded-2xl border border-ink/10 bg-white p-2 shadow-xl">
+        <div className="absolute right-0 top-12 z-40 w-64 animate-fade-in rounded-2xl border border-ink/10 bg-surface p-2 shadow-xl">
           <div className="px-3 py-2">
             {user.displayName && <p className="truncate font-medium">{user.displayName}</p>}
             {user.email && <p className="truncate text-sm text-ink/55">{user.email}</p>}
           </div>
+          <AppearancePicker />
           <button
             onClick={signOut}
-            className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-ink/80 hover:bg-ink/5"
+            className="mt-1 flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-ink/80 hover:bg-ink/5"
           >
             <LogOut className="h-4 w-4" aria-hidden="true" />
             Sign out
@@ -207,7 +240,7 @@ export const AutoTextarea = forwardRef<
       }}
       rows={minRows}
       {...props}
-      className={`w-full resize-none rounded-xl border border-ink/15 bg-white px-4 py-3 text-base leading-relaxed outline-none transition placeholder:text-ink/35 focus:border-fc focus:ring-4 focus:ring-fc/15 ${className}`}
+      className={`w-full resize-none rounded-xl border border-ink/15 bg-surface px-4 py-3 text-base leading-relaxed outline-none transition placeholder:text-ink/35 focus:border-fc focus:ring-4 focus:ring-fc/15 ${className}`}
     />
   );
 });
